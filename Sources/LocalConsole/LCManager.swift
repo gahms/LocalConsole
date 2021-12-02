@@ -48,7 +48,11 @@ public class LCManager: NSObject, UIGestureRecognizerDelegate {
     
     var lumaWidthAnchor: NSLayoutConstraint!
     var lumaHeightAnchor: NSLayoutConstraint!
-    
+
+    lazy var resizeController: ResizeController = {
+        ResizeController(parentSize: windowSize)
+    }()
+
     lazy var lumaView: LumaView = {
         let lumaView = LumaView()
         lumaView.foregroundView.backgroundColor = .black
@@ -106,10 +110,10 @@ public class LCManager: NSObject, UIGestureRecognizerDelegate {
             consoleView.frame.size = consoleSize
             
             // Update text view width.
-            if consoleView.frame.size.width > ResizeController.kMaxConsoleWidth {
-                consoleTextView.frame.size.width = ResizeController.kMaxConsoleWidth - 2
-            } else if consoleView.frame.size.width < ResizeController.kMinConsoleWidth {
-                consoleTextView.frame.size.width = ResizeController.kMinConsoleWidth - 2
+            if consoleView.frame.size.width > resizeController.kMaxConsoleWidth {
+                consoleTextView.frame.size.width = resizeController.kMaxConsoleWidth - 2
+            } else if consoleView.frame.size.width < resizeController.kMinConsoleWidth {
+                consoleTextView.frame.size.width = resizeController.kMinConsoleWidth - 2
             } else {
                 consoleTextView.frame.size.width = consoleSize.width - 2
             }
@@ -136,6 +140,9 @@ public class LCManager: NSObject, UIGestureRecognizerDelegate {
     
     /// Strong reference keeps the window alive.
     var consoleWindow: ConsoleWindow?
+    var contentView: UIView {
+        consoleViewController.view!
+    }
     
     // The console needs a parent view controller in order to display context menus.
     lazy var consoleViewController = ConsoleViewController()
@@ -681,8 +688,8 @@ public class LCManager: NSObject, UIGestureRecognizerDelegate {
         let resize = UIAction(title: "Resize Console",
                               image: UIImage(systemName: "arrow.left.and.right.square"), handler: { _ in
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                ResizeController.shared.isActive.toggle()
-                ResizeController.shared.platterView.reveal()
+                self.resizeController.isActive.toggle()
+                self.resizeController.platterView.reveal()
             }
         })
         
@@ -768,7 +775,7 @@ public class LCManager: NSObject, UIGestureRecognizerDelegate {
             menuContent.append(resize)
         }
         menuContent.append(debugActions)
-        
+
         return UIMenu(title: "", children: menuContent)
     }
     
@@ -891,7 +898,7 @@ public class LCManager: NSObject, UIGestureRecognizerDelegate {
         UIViewPropertyAnimator(duration: 0.4, dampingRatio: 1) { [self] in
             if !grabberMode {
                 consoleTextView.alpha = 1
-                if !ResizeController.shared.isActive {
+                if !self.resizeController.isActive {
                     menuButton.alpha = 1
                 }
             }
