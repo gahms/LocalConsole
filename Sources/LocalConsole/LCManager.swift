@@ -576,76 +576,6 @@ public class LCManager: NSObject, UIGestureRecognizerDelegate {
         willSet { dynamicReportTimer?.invalidate() }
     }
     
-    func systemReport() {
-        DispatchQueue.main.async { [self] in
-            
-            if currentText != "" { print("\n") }
-            
-            dynamicReportTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { timer in
-                var _currentText = currentText
-                
-                // To optimize performance, only scan the last 2500 characters of text for system report changes.
-                let range: NSRange = {
-                    if _currentText.count <= 2500 {
-                        return NSMakeRange(0, _currentText.count)
-                    }
-                    return NSMakeRange(_currentText.count - 2500, 2500)
-                }()
-                
-                let regex0 = try! NSRegularExpression(pattern: "Thermal State:      .*", options: NSRegularExpression.Options.caseInsensitive)
-                _currentText = regex0.stringByReplacingMatches(in: _currentText, options: [], range: range, withTemplate: "Thermal State:      \(SystemReport.shared.thermalState)")
-                
-                let regex1 = try! NSRegularExpression(pattern: "System Uptime:      .*", options: NSRegularExpression.Options.caseInsensitive)
-                _currentText = regex1.stringByReplacingMatches(in: _currentText, options: [], range: range, withTemplate: "System Uptime:      \(ProcessInfo.processInfo.systemUptime.formattedString!)")
-                
-                let regex2 = try! NSRegularExpression(pattern: "Low Power Mode:     .*", options: NSRegularExpression.Options.caseInsensitive)
-                _currentText = regex2.stringByReplacingMatches(in: _currentText, options: [], range: range, withTemplate: "Low Power Mode:     \(ProcessInfo.processInfo.isLowPowerModeEnabled)")
-                
-                if currentText != _currentText {
-                    currentText = _currentText
-                } else {
-                    
-                    // Invalidate the timer if there is no longer anything to update.
-                    timer.invalidate()
-                }
-            }
-            
-            print(
-                  """
-                  Model Name:         \(SystemReport.shared.gestaltMarketingName)
-                  Model Identifier:   \(SystemReport.shared.gestaltModelIdentifier)
-                  Architecture:       \(SystemReport.shared.gestaltArchitecture)
-                  Firmware:           \(SystemReport.shared.gestaltFirmwareVersion)
-                  Kernel Version:     \(SystemReport.shared.kernel) \(SystemReport.shared.kernelVersion)
-                  System Version:     \(SystemReport.shared.versionString)
-                  OS Compile Date:    \(SystemReport.shared.compileDate)
-                  Memory:             \(round(100 * Double(ProcessInfo.processInfo.physicalMemory) * pow(10, -9)) / 100) GB
-                  Processor Cores:    \(Int(ProcessInfo.processInfo.processorCount))
-                  Thermal State:      \(SystemReport.shared.thermalState)
-                  System Uptime:      \(ProcessInfo.processInfo.systemUptime.formattedString!)
-                  Low Power Mode:     \(ProcessInfo.processInfo.isLowPowerModeEnabled)
-                  """
-            )
-        }
-    }
-    
-    func displayReport() {
-        DispatchQueue.main.async { [self] in
-            
-            if currentText != "" { print("\n") }
-            
-            print(
-                  """
-                  Screen Size:            \(UIScreen.main.bounds.size)
-                  Screen Corner Radius:   \(UIScreen.main.value(forKey: "_displ" + "ayCorn" + "erRa" + "dius") as! CGFloat)
-                  Screen Scale:           \(UIScreen.main.scale)
-                  Max Frame Rate:         \(UIScreen.main.maximumFramesPerSecond) Hz
-                  Brightness:             \(String(format: "%.2f", UIScreen.main.brightness))
-                  """
-            )
-        }
-    }
-    
     func commitTextChanges(requestMenuUpdate menuUpdateRequested: Bool) {
         
         if consoleTextView.contentOffset.y > consoleTextView.contentSize.height - consoleTextView.bounds.size.height - 20 {
@@ -700,73 +630,6 @@ public class LCManager: NSObject, UIGestureRecognizerDelegate {
         
         let consoleActions = UIMenu(title: "", options: .displayInline, children: [clear, resize])
         
-        var frameSymbol = "rectangle.3.offgrid"
-        if #available(iOS 15, *) {
-            frameSymbol = "square.inset.filled"
-        }
-        
-        let systemReport = UIAction(title: "System Report",
-                                    image: UIImage(systemName: "cpu"), handler: { _ in
-            self.systemReport()
-        })
-        
-        // Show the right glyph for the current device being used.
-        let deviceSymbol: String = {
-            
-            let hasHomeButton = UIScreen.main.value(forKey: "_displ" + "ayCorn" + "erRa" + "dius") as! CGFloat == 0
-            
-            if UIDevice.current.userInterfaceIdiom == .pad {
-                if hasHomeButton {
-                    return "ipad.homebutton"
-                } else {
-                    return "ipad"
-                }
-            } else if UIDevice.current.userInterfaceIdiom == .phone {
-                if hasHomeButton {
-                    return "iphone.homebutton"
-                } else {
-                    return "iphone"
-                }
-            } else {
-                return "rectangle"
-            }
-        }()
-        
-        let displayReport = UIAction(title: "Display Report",
-                                     image: UIImage(systemName: deviceSymbol), handler: { _ in
-            self.displayReport()
-        })
-        
-        let respring = UIAction(title: "Restart Spring" + "Board",
-                                image: UIImage(systemName: "apps.iphone"), handler: { _ in
-            
-            guard let window = UIApplication.shared.windows.first else { return }
-            
-            window.layer.cornerRadius = UIScreen.main.value(forKey: "_displ" + "ayCorn" + "erRa" + "dius") as! CGFloat
-            window.layer.masksToBounds = true
-            
-            UIViewPropertyAnimator(duration: 0.5, dampingRatio: 1) {
-                window.transform = .init(scaleX: 0.96, y: 0.96)
-                window.alpha = 0
-            }.startAnimation()
-            
-            // Concurrently run these snapshots to decrease the time to crash.
-            for _ in 0...1000 {
-                DispatchQueue.global(qos: .default).async {
-                    
-                    // This will cause jetsam to terminate SpringBoard.
-                    while true {
-                        window.snapshotView(afterScreenUpdates: false)
-                    }
-                }
-            }
-        })
-        
-        let debugActions = UIMenu(title: "", options: .displayInline,
-                                  children: [UIMenu(title: "Debug", image: UIImage(systemName: "ant"),
-                                                    children: [
-                                                        systemReport, displayReport, respring])])
-        
         var menuContent: [UIMenuElement] = []
         
         if consoleTextView.text != "" {
@@ -774,7 +637,6 @@ public class LCManager: NSObject, UIGestureRecognizerDelegate {
         } else {
             menuContent.append(resize)
         }
-        menuContent.append(debugActions)
 
         return UIMenu(title: "", children: menuContent)
     }
