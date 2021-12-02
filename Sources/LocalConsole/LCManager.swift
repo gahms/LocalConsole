@@ -159,11 +159,14 @@ public class LCManager: NSObject, UIGestureRecognizerDelegate {
     
     lazy var panRecognizer = UIPanGestureRecognizer(target: self, action: #selector(consolePiPPanner(recognizer:)))
     lazy var longPressRecognizer = UILongPressGestureRecognizer(target: self, action: #selector(longPressAction(recognizer:)))
-    
+
+    var windowSize: CGSize {
+        consoleWindow?.frame.size ?? UIScreen.size
+    }
+
     /// Gesture endpoints. Each point represents a corner of the screen. TODO: Handle screen rotation.
     var possibleEndpoints: [CGPoint] {
-        
-        if consoleSize.width < UIScreen.portraitSize.width - 112 {
+        if consoleSize.width < windowSize.width - 112 {
             
             // Four endpoints, one for each corner.
             var endpoints = [
@@ -171,14 +174,14 @@ public class LCManager: NSObject, UIGestureRecognizerDelegate {
                 // Top endpoints.
                 CGPoint(x: consoleSize.width / 2 + 12,
                         y: (UIScreen.hasRoundedCorners ? 38 : 16) + consoleSize.height / 2 + 12),
-                CGPoint(x: UIScreen.portraitSize.width - consoleSize.width / 2 - 12,
+                CGPoint(x: windowSize.width - consoleSize.width / 2 - 12,
                         y: (UIScreen.hasRoundedCorners ? 38 : 16) + consoleSize.height / 2 + 12),
                 
                 // Bottom endpoints.
                 CGPoint(x: consoleSize.width / 2 + 12,
-                        y: UIScreen.portraitSize.height - consoleSize.height / 2 - (keyboardHeight ?? consoleWindow?.safeAreaInsets.bottom ?? 0) - 12),
-                CGPoint(x: UIScreen.portraitSize.width - consoleSize.width / 2 - 12,
-                        y: UIScreen.portraitSize.height - consoleSize.height / 2 - (keyboardHeight ?? consoleWindow?.safeAreaInsets.bottom ?? 0) - 12)]
+                        y: windowSize.height - consoleSize.height / 2 - (keyboardHeight ?? consoleWindow?.safeAreaInsets.bottom ?? 0) - 12),
+                CGPoint(x: windowSize.width - consoleSize.width / 2 - 12,
+                        y: windowSize.height - consoleSize.height / 2 - (keyboardHeight ?? consoleWindow?.safeAreaInsets.bottom ?? 0) - 12)]
             
             if consoleView.frame.minX <= 0 {
                 
@@ -186,24 +189,24 @@ public class LCManager: NSObject, UIGestureRecognizerDelegate {
                 endpoints = [endpoints[0], endpoints[2]]
                 
                 // Left edge hiding endpoints.
-                if consoleView.center.y < (UIScreen.portraitSize.height - (temporaryKeyboardHeightValueTracker ?? 0)) / 2 {
+                if consoleView.center.y < (windowSize.height - (temporaryKeyboardHeightValueTracker ?? 0)) / 2 {
                     endpoints.append(CGPoint(x: -consoleSize.width / 2 + 28,
                                              y: endpoints[0].y))
                 } else {
                     endpoints.append(CGPoint(x: -consoleSize.width / 2 + 28,
                                              y: endpoints[1].y))
                 }
-            } else if consoleView.frame.maxX >= UIScreen.portraitSize.width {
+            } else if consoleView.frame.maxX >= windowSize.width {
                 
                 // Right edge endpoints.
                 endpoints = [endpoints[1], endpoints[3]]
                 
                 // Right edge hiding endpoints.
-                if consoleView.center.y < (UIScreen.portraitSize.height - (temporaryKeyboardHeightValueTracker ?? 0)) / 2 {
-                    endpoints.append(CGPoint(x: UIScreen.portraitSize.width + consoleSize.width / 2 - 28,
+                if consoleView.center.y < (windowSize.height - (temporaryKeyboardHeightValueTracker ?? 0)) / 2 {
+                    endpoints.append(CGPoint(x: windowSize.width + consoleSize.width / 2 - 28,
                                              y: endpoints[0].y))
                 } else {
-                    endpoints.append(CGPoint(x: UIScreen.portraitSize.width + consoleSize.width / 2 - 28,
+                    endpoints.append(CGPoint(x: windowSize.width + consoleSize.width / 2 - 28,
                                              y: endpoints[1].y))
                 }
             }
@@ -213,29 +216,29 @@ public class LCManager: NSObject, UIGestureRecognizerDelegate {
         } else {
             
             // Two endpoints, one for the top, one for the bottom..
-            var endpoints = [CGPoint(x: UIScreen.portraitSize.width / 2,
+            var endpoints = [CGPoint(x: windowSize.width / 2,
                                      y: (UIScreen.hasRoundedCorners ? 38 : 16) + consoleSize.height / 2 + 12),
-                             CGPoint(x: UIScreen.portraitSize.width / 2,
-                                     y: UIScreen.portraitSize.height - consoleSize.height / 2 - (keyboardHeight ?? consoleWindow?.safeAreaInsets.bottom ?? 0) - 12)]
+                             CGPoint(x: windowSize.width / 2,
+                                     y: windowSize.height - consoleSize.height / 2 - (keyboardHeight ?? consoleWindow?.safeAreaInsets.bottom ?? 0) - 12)]
             
             if consoleView.frame.minX <= 0 {
                 
                 // Left edge hiding endpoints.
-                if consoleView.center.y < (UIScreen.portraitSize.height - (temporaryKeyboardHeightValueTracker ?? 0)) / 2 {
+                if consoleView.center.y < (windowSize.height - (temporaryKeyboardHeightValueTracker ?? 0)) / 2 {
                     endpoints.append(CGPoint(x: -consoleSize.width / 2 + 28,
                                              y: endpoints[0].y))
                 } else {
                     endpoints.append(CGPoint(x: -consoleSize.width / 2 + 28,
                                              y: endpoints[1].y))
                 }
-            } else if consoleView.frame.maxX >= UIScreen.portraitSize.width {
+            } else if consoleView.frame.maxX >= windowSize.width {
                 
                 // Right edge hiding endpoints.
-                if consoleView.center.y < (UIScreen.portraitSize.height - (temporaryKeyboardHeightValueTracker ?? 0)) / 2 {
-                    endpoints.append(CGPoint(x: UIScreen.portraitSize.width + consoleSize.width / 2 - 28,
+                if consoleView.center.y < (windowSize.height - (temporaryKeyboardHeightValueTracker ?? 0)) / 2 {
+                    endpoints.append(CGPoint(x: windowSize.width + consoleSize.width / 2 - 28,
                                              y: endpoints[0].y))
                 } else {
-                    endpoints.append(CGPoint(x: UIScreen.portraitSize.width + consoleSize.width / 2 - 28,
+                    endpoints.append(CGPoint(x: windowSize.width + consoleSize.width / 2 - 28,
                                              y: endpoints[1].y))
                 }
             }
@@ -344,7 +347,7 @@ public class LCManager: NSObject, UIGestureRecognizerDelegate {
         func updateConsoleOrigin() {
             snapToCachedEndpoint()
             
-            if consoleView.center.x < 0 || consoleView.center.x > UIScreen.portraitSize.width {
+            if consoleView.center.x < 0 || consoleView.center.x > windowSize.width {
                 grabberMode = true
                 scrollLocked = !grabberMode
                 
@@ -825,7 +828,7 @@ public class LCManager: NSObject, UIGestureRecognizerDelegate {
                                              y: initialViewLocation.y + translation.y)
             }.startAnimation()
             
-            if consoleView.frame.maxX > 30 && consoleView.frame.minX < UIScreen.portraitSize.width - 30 {
+            if consoleView.frame.maxX > 30 && consoleView.frame.minX < windowSize.width - 30 {
                 grabberMode = false
             } else {
                 grabberMode = true
@@ -862,7 +865,7 @@ public class LCManager: NSObject, UIGestureRecognizerDelegate {
             UserDefaults.standard.set(nearestTargetPosition.y, forKey: "LocalConsole_Y")
             
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
-                self.grabberMode = nearestTargetPosition.x < 0 || nearestTargetPosition.x > UIScreen.portraitSize.width
+                self.grabberMode = nearestTargetPosition.x < 0 || nearestTargetPosition.x > self.windowSize.width
                 self.scrollLocked = !self.grabberMode
             }
             
