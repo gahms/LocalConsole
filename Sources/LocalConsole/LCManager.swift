@@ -8,8 +8,6 @@
 import UIKit
 import SwiftUI
 
-var GLOBAL_BORDER_TRACKERS: [BorderManager] = []
-
 @available(iOSApplicationExtension, unavailable)
 public class LCManager: NSObject, UIGestureRecognizerDelegate {
     
@@ -559,36 +557,6 @@ public class LCManager: NSObject, UIGestureRecognizerDelegate {
         keyboardHeight = nil
     }
     
-    private var debugBordersEnabled = false {
-        didSet {
-            
-            UIView.swizzleDebugBehaviour_UNTRACKABLE_TOGGLE()
-            
-            guard debugBordersEnabled else {
-                GLOBAL_BORDER_TRACKERS.forEach {
-                    $0.deactivate()
-                }
-                GLOBAL_BORDER_TRACKERS = []
-                return
-            }
-            
-            func subviewsRecursive(in _view: UIView) -> [UIView] {
-                return _view.subviews + _view.subviews.flatMap { subviewsRecursive(in: $0) }
-            }
-            
-            var allViews: [UIView] = []
-            
-            for window in UIApplication.shared.windows {
-                allViews.append(contentsOf: subviewsRecursive(in: window))
-            }
-            allViews.forEach {
-                let tracker = BorderManager(view: $0)
-                GLOBAL_BORDER_TRACKERS.append(tracker)
-                tracker.activate()
-            }
-        }
-    }
-    
     var dynamicReportTimer: Timer? {
         willSet { dynamicReportTimer?.invalidate() }
     }
@@ -722,12 +690,6 @@ public class LCManager: NSObject, UIGestureRecognizerDelegate {
             frameSymbol = "square.inset.filled"
         }
         
-        let viewFrames = UIAction(title: debugBordersEnabled ? "Hide View Frames" : "Show View Frames",
-                                  image: UIImage(systemName: frameSymbol), handler: { _ in
-            self.debugBordersEnabled.toggle()
-            self.menuButton.menu = self.makeMenu()
-        })
-        
         let systemReport = UIAction(title: "System Report",
                                     image: UIImage(systemName: "cpu"), handler: { _ in
             self.systemReport()
@@ -787,7 +749,8 @@ public class LCManager: NSObject, UIGestureRecognizerDelegate {
         
         let debugActions = UIMenu(title: "", options: .displayInline,
                                   children: [UIMenu(title: "Debug", image: UIImage(systemName: "ant"),
-                                                    children: [viewFrames, systemReport, displayReport, respring])])
+                                                    children: [
+                                                        systemReport, displayReport, respring])])
         
         var menuContent: [UIMenuElement] = []
         
@@ -970,24 +933,6 @@ public class UITapStartEndGestureRecognizer: UITapGestureRecognizer {
     }
     override public func touchesEnded(_ touches: Set<UITouch>, with: UIEvent) {
         self.state = .ended
-    }
-}
-
-// MARK: Fun hacks!
-extension UIView {
-    /// Swizzle UIView to use custom frame system when needed.
-    static func swizzleDebugBehaviour_UNTRACKABLE_TOGGLE() {
-        guard let originalMethod = class_getInstanceMethod(UIView.self, #selector(layoutSubviews)),
-              let swizzledMethod = class_getInstanceMethod(UIView.self, #selector(swizzled_layoutSubviews)) else { return }
-        method_exchangeImplementations(originalMethod, swizzledMethod)
-    }
-    
-    @objc func swizzled_layoutSubviews() {
-        swizzled_layoutSubviews()
-        
-        let tracker = BorderManager(view: self)
-        GLOBAL_BORDER_TRACKERS.append(tracker)
-        tracker.activate()
     }
 }
 
