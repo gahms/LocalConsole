@@ -138,8 +138,12 @@ public class LCManager: NSObject, UIGestureRecognizerDelegate {
     var consoleWindow: ConsoleWindow?
     
     // The console needs a parent view controller in order to display context menus.
-    lazy var viewController = UIViewController()
-    lazy var consoleView = viewController.view!
+    lazy var consoleViewController = ConsoleViewController()
+    lazy var consoleView: UIView = {
+        let v = UIView()
+        consoleViewController.view!.addSubview(v)
+        return v
+    }()
     
     /// Text view that displays printed items.
     lazy var consoleTextView = InvertedTextView()
@@ -359,17 +363,18 @@ public class LCManager: NSObject, UIGestureRecognizerDelegate {
                 .first
             
             if let windowScene = windowScene as? UIWindowScene {
-                
                 windowSceneFound = true
-                
-                consoleWindow = ConsoleWindow(windowScene: windowScene)
-                consoleWindow?.frame = UIScreen.main.bounds
-                consoleWindow?.windowLevel = UIWindow.Level.statusBar
-                consoleWindow?.isHidden = false
-                consoleWindow?.addSubview(consoleView)
-                
+
                 UIWindow.swizzleStatusBarAppearanceOverride
-                
+                let window = ConsoleWindow(windowScene: windowScene)
+                window.frame = UIScreen.main.bounds
+                //let level = UIWindow.Level(UIWindow.Level.statusBar.rawValue + 1)
+                let level = UIWindow.Level.statusBar
+                window.windowLevel = level
+                window.rootViewController = consoleViewController
+                window.isHidden = false
+                consoleWindow = window
+
                 updateConsoleOrigin()
             }
         }
@@ -506,7 +511,7 @@ public class LCManager: NSObject, UIGestureRecognizerDelegate {
     /// Print items to the console view.
     public func print(_ items: Any) {
         if currentText == "" {
-            currentText = "\(items)"
+            currentText = "5> \(items)"
         } else {
             currentText = currentText + "\n\(items)"
         }
@@ -911,16 +916,27 @@ public class LCManager: NSObject, UIGestureRecognizerDelegate {
 
 // Custom window for the console to appear above other windows while passing touches down.
 class ConsoleWindow: UIWindow {
-    
     override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
-        
-        if let hitView = super.hitTest(point, with: event) {
-            return hitView.isKind(of: ConsoleWindow.self) ? nil : hitView
+        guard let hitView = super.hitTest(point, with: event) else {
+            return nil
         }
-        return super.hitTest(point, with: event)
+        if hitView.isKind(of: ConsoleView.self) {
+            return nil
+        }
+        else {
+            return hitView
+        }
     }
 }
 
+class ConsoleViewController: UIViewController {
+    override func loadView() {
+        view = ConsoleView()
+    }
+}
+
+class ConsoleView: UIView {
+}
 
 import UIKit.UIGestureRecognizerSubclass
 
@@ -947,7 +963,13 @@ extension UIWindow {
     }()
     
     @objc func swizzled_statusBarAppearance() -> Bool {
-        return isKeyWindow
+        if self.isKind(of: ConsoleWindow.self) {
+            return false
+        }
+        else {
+            // original implementation instead
+            return swizzled_statusBarAppearance()
+        }
     }
 }
 
