@@ -10,6 +10,12 @@ import SwiftUI
 
 @available(iOSApplicationExtension, unavailable)
 public class LCManager: NSObject, UIGestureRecognizerDelegate {
+    public enum DefaultWindowPos {
+        case topLeft
+        case topRight
+        case bottomLeft
+        case bottomRight
+    }
     
     public static let shared = LCManager()
 
@@ -22,6 +28,8 @@ public class LCManager: NSObject, UIGestureRecognizerDelegate {
         }
     }
     public var hideActionEnabled: Bool = true
+
+    public var defaultWindowPos: DefaultWindowPos = .topLeft
     
     /// Set the font size. The font can be set to a minimum value of 5.0 and a maximum value of 20.0. The default value is 8.
     public var fontSize: CGFloat = 8 {
@@ -181,27 +189,48 @@ public class LCManager: NSObject, UIGestureRecognizerDelegate {
         consoleWindow?.frame.size ?? UIScreen.size
     }
 
-    /// Gesture endpoints. Each point represents a corner of the screen. TODO: Handle screen rotation.
-    var possibleEndpoints: [CGPoint] {
+    var allEndpoints: [CGPoint] {
         if consoleSize.width < windowSize.width - 112 {
-            
             // Four endpoints, one for each corner.
-            var endpoints = [
-                
+            return [
                 // Top endpoints.
                 CGPoint(x: consoleSize.width / 2 + 12,
-                        y: (UIScreen.hasRoundedCorners ? 38 : 16) + consoleSize.height / 2 + 12),
+                        y: (UIScreen.hasRoundedCorners ? 38 : 16)
+                        + consoleSize.height / 2 + 12),
                 CGPoint(x: windowSize.width - consoleSize.width / 2 - 12,
-                        y: (UIScreen.hasRoundedCorners ? 38 : 16) + consoleSize.height / 2 + 12),
-                
+                        y: (UIScreen.hasRoundedCorners ? 38 : 16)
+                        + consoleSize.height / 2 + 12),
+
                 // Bottom endpoints.
                 CGPoint(x: consoleSize.width / 2 + 12,
-                        y: windowSize.height - consoleSize.height / 2 - (keyboardHeight ?? consoleWindow?.safeAreaInsets.bottom ?? 0) - 12),
+                        y: windowSize.height - consoleSize.height / 2
+                        - (keyboardHeight ?? consoleWindow?.safeAreaInsets.bottom ?? 0)
+                        - 12),
                 CGPoint(x: windowSize.width - consoleSize.width / 2 - 12,
-                        y: windowSize.height - consoleSize.height / 2 - (keyboardHeight ?? consoleWindow?.safeAreaInsets.bottom ?? 0) - 12)]
-            
+                        y: windowSize.height - consoleSize.height / 2
+                        - (keyboardHeight ?? consoleWindow?.safeAreaInsets.bottom ?? 0)
+                        - 12)
+            ]
+        }
+        else {
+            // Two endpoints, one for the top, one for the bottom..
+            return [
+                CGPoint(x: windowSize.width / 2,
+                        y: (UIScreen.hasRoundedCorners ? 38 : 16)
+                        + consoleSize.height / 2 + 12),
+                CGPoint(x: windowSize.width / 2,
+                        y: windowSize.height - consoleSize.height / 2
+                        - (keyboardHeight ?? consoleWindow?.safeAreaInsets.bottom ?? 0)
+                        - 12)
+            ]
+        }
+    }
+
+    /// Gesture endpoints. Each point represents a corner of the screen. TODO: Handle screen rotation.
+    var possibleEndpoints: [CGPoint] {
+        var endpoints = allEndpoints
+        if consoleSize.width < windowSize.width - 112 {
             if consoleView.frame.minX <= 0 {
-                
                 // Left edge endpoints.
                 endpoints = [endpoints[0], endpoints[2]]
                 
@@ -214,16 +243,17 @@ public class LCManager: NSObject, UIGestureRecognizerDelegate {
                                              y: endpoints[1].y))
                 }
             } else if consoleView.frame.maxX >= windowSize.width {
-                
                 // Right edge endpoints.
                 endpoints = [endpoints[1], endpoints[3]]
                 
                 // Right edge hiding endpoints.
                 if consoleView.center.y < (windowSize.height - (temporaryKeyboardHeightValueTracker ?? 0)) / 2 {
-                    endpoints.append(CGPoint(x: windowSize.width + consoleSize.width / 2 - 28,
+                    endpoints.append(CGPoint(x: windowSize.width
+                                             + consoleSize.width / 2 - 28,
                                              y: endpoints[0].y))
                 } else {
-                    endpoints.append(CGPoint(x: windowSize.width + consoleSize.width / 2 - 28,
+                    endpoints.append(CGPoint(x: windowSize.width
+                                             + consoleSize.width / 2 - 28,
                                              y: endpoints[1].y))
                 }
             }
@@ -231,15 +261,7 @@ public class LCManager: NSObject, UIGestureRecognizerDelegate {
             return endpoints
             
         } else {
-            
-            // Two endpoints, one for the top, one for the bottom..
-            var endpoints = [CGPoint(x: windowSize.width / 2,
-                                     y: (UIScreen.hasRoundedCorners ? 38 : 16) + consoleSize.height / 2 + 12),
-                             CGPoint(x: windowSize.width / 2,
-                                     y: windowSize.height - consoleSize.height / 2 - (keyboardHeight ?? consoleWindow?.safeAreaInsets.bottom ?? 0) - 12)]
-            
             if consoleView.frame.minX <= 0 {
-                
                 // Left edge hiding endpoints.
                 if consoleView.center.y < (windowSize.height - (temporaryKeyboardHeightValueTracker ?? 0)) / 2 {
                     endpoints.append(CGPoint(x: -consoleSize.width / 2 + 28,
@@ -423,11 +445,39 @@ public class LCManager: NSObject, UIGestureRecognizerDelegate {
     }
     
     func snapToCachedEndpoint() {
-        let cachedConsolePosition = CGPoint(x: UserDefaults.standard.object(forKey: "LocalConsole_X") as? CGFloat ?? possibleEndpoints.first!.x,
-                                            y: UserDefaults.standard.object(forKey: "LocalConsole_Y") as? CGFloat ?? possibleEndpoints.first!.y)
-        
-        consoleView.center = cachedConsolePosition // Update console center so possibleEndpoints are calculated correctly.
-        consoleView.center = nearestTargetTo(cachedConsolePosition, possibleTargets: possibleEndpoints)
+        let defaultPosIndex: Int
+        let endpoints = allEndpoints
+        if endpoints.count < 3 {
+            switch defaultWindowPos {
+            case .topLeft, .topRight:
+                defaultPosIndex = 0
+            case .bottomLeft, .bottomRight:
+                defaultPosIndex = 1
+            }
+        }
+        else {
+            switch defaultWindowPos {
+            case .topLeft:
+                defaultPosIndex = 0
+            case .topRight:
+                defaultPosIndex = 1
+            case .bottomLeft:
+                defaultPosIndex = 2
+            case .bottomRight:
+                defaultPosIndex = 3
+            }
+        }
+
+        let cachedConsolePosition = CGPoint(
+            x: UserDefaults.standard.object(forKey: "LocalConsole_X") as? CGFloat
+            ?? allEndpoints[defaultPosIndex].x,
+            y: UserDefaults.standard.object(forKey: "LocalConsole_Y") as? CGFloat
+            ?? allEndpoints[defaultPosIndex].y)
+
+        // Update console center so possibleEndpoints are calculated correctly.
+        consoleView.center = cachedConsolePosition
+        consoleView.center = nearestTargetTo(cachedConsolePosition,
+                                             possibleTargets: possibleEndpoints)
     }
     
     // MARK: - Public
