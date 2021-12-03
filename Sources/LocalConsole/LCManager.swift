@@ -28,38 +28,9 @@ public class LCManager: NSObject, UIGestureRecognizerDelegate {
         }
     }
     public var hideActionEnabled: Bool = true
-
     public var defaultWindowPos: DefaultWindowPos = .topLeft
     
-    /// Set the font size. The font can be set to a minimum value of 5.0 and a maximum value of 20.0. The default value is 8.
-    public var fontSize: CGFloat = 8 {
-        didSet {
-            guard fontSize >= 4 else { fontSize = 4; return }
-            guard fontSize <= 20 else { fontSize = 20; return }
-            
-            setAttributedText(consoleTextView.text)
-        }
-    }
-    
     var isConsoleConfigured = false
-    
-    /// A high performance text tracker that only updates the view's text if the view is visible. This allows the app to run print to the console with virtually no performance implications when the console isn't visible.
-    var currentText: String = "" {
-        didSet {
-            if isVisible {
-                
-                // Ensure we are performing UI updates on the main thread.
-                DispatchQueue.main.async {
-                    
-                    // Ensure the console doesn't get caught into any external animation blocks.
-                    UIView.performWithoutAnimation {
-                        self.commitTextChanges(requestMenuUpdate: oldValue == "" || (oldValue != "" && self.currentText == ""))
-                    }
-                }
-            }
-        }
-    }
-    
     let defaultConsoleSize = CGSize(width: 240, height: 148)
     
     lazy var borderView = UIView()
@@ -170,8 +141,7 @@ public class LCManager: NSObject, UIGestureRecognizerDelegate {
         return v
     }()
     
-    /// Text view that displays printed items.
-    lazy var consoleTextView = InvertedTextView()
+    lazy var consoleTextView: UIScrollView = UIScrollView()
     
     /// Button that reveals menu.
     lazy var menuButton = UIButton()
@@ -315,11 +285,7 @@ public class LCManager: NSObject, UIGestureRecognizerDelegate {
         
         // Configure text view.
         consoleTextView.frame = CGRect(x: 1, y: 1, width: consoleSize.width - 2, height: consoleSize.height - 2)
-        consoleTextView.isEditable = false
         consoleTextView.backgroundColor = .clear
-        consoleTextView.textContainerInset = UIEdgeInsets(top: 10, left: 10, bottom: 10, right: 10)
-        
-        consoleTextView.isSelectable = false
         consoleTextView.showsVerticalScrollIndicator = false
         consoleTextView.contentInsetAdjustmentBehavior = .never
         consoleView.addSubview(consoleTextView)
@@ -496,8 +462,6 @@ public class LCManager: NSObject, UIGestureRecognizerDelegate {
                     }
                 }
                 
-                commitTextChanges(requestMenuUpdate: true)
-                
                 consoleView.transform = .init(scaleX: 0.9, y: 0.9)
                 UIViewPropertyAnimator(duration: 0.5, dampingRatio: 0.6) { [self] in
                     consoleView.transform = .init(scaleX: 1, y: 1)
@@ -580,26 +544,7 @@ public class LCManager: NSObject, UIGestureRecognizerDelegate {
             }
         }
     }
-    
-    /// Print items to the console view.
-    public func print(_ items: Any) {
-        if currentText == "" {
-            currentText = "5> \(items)"
-        } else {
-            currentText = currentText + "\n\(items)"
-        }
-    }
-    
-    /// Clear text in the console view.
-    public func clear() {
-        currentText = ""
-    }
-    
-    /// Copy the console view text to the device's clipboard.
-    public func copy() {
-        UIPasteboard.general.string = consoleTextView.text
-    }
-    
+
     // MARK: - Private
     
     var temporaryKeyboardHeightValueTracker: CGFloat?
@@ -637,38 +582,6 @@ public class LCManager: NSObject, UIGestureRecognizerDelegate {
     
     var dynamicReportTimer: Timer? {
         willSet { dynamicReportTimer?.invalidate() }
-    }
-    
-    func commitTextChanges(requestMenuUpdate menuUpdateRequested: Bool) {
-        
-        if consoleTextView.contentOffset.y > consoleTextView.contentSize.height - consoleTextView.bounds.size.height - 20 {
-            
-            // Weird, weird fix that makes the scroll view bottom pinning system work.
-            consoleTextView.isScrollEnabled.toggle()
-            consoleTextView.isScrollEnabled.toggle()
-            
-            consoleTextView.pendingOffsetChange = true
-        }
-        
-        setAttributedText(currentText)
-        
-        if menuUpdateRequested {
-            // Update the context menu to show the clipboard/clear actions.
-            menuButton.menu = makeMenu()
-        }
-    }
-    
-    func setAttributedText(_ string: String) {
-        let paragraphStyle = NSMutableParagraphStyle()
-        paragraphStyle.headIndent = 7
-        
-        let attributes: [NSAttributedString.Key: Any] = [
-            .paragraphStyle: paragraphStyle,
-            .foregroundColor: UIColor.white,
-            .font: UIFont.systemFont(ofSize: fontSize, weight: .semibold, design: .monospaced)
-        ]
-        
-        consoleTextView.attributedText = NSAttributedString(string: string, attributes: attributes)
     }
     
     func makeMenu() -> UIMenu {
@@ -976,36 +889,6 @@ class LumaView: UIView {
     
     required init?(coder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
-    }
-}
-
-class InvertedTextView: UITextView {
-    
-    var pendingOffsetChange = false
-    
-    // Thanks to WWDC21 Lab!
-    override func layoutSubviews() {
-        super.layoutSubviews()
-        
-        if panGestureRecognizer.numberOfTouches == 0 && pendingOffsetChange {
-            contentOffset.y = contentSize.height - bounds.size.height
-        } else {
-            pendingOffsetChange = false
-        }
-    }
-    
-    var cancelNextContentSizeDidSet = false
-    
-    override var contentSize: CGSize {
-        didSet {
-            cancelNextContentSizeDidSet = true
-            
-            if contentSize.height < bounds.size.height {
-                contentInset.top = bounds.size.height - contentSize.height
-            } else {
-                contentInset.top = 0
-            }
-        }
     }
 }
 
