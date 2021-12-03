@@ -12,6 +12,16 @@ import SwiftUI
 public class LCManager: NSObject, UIGestureRecognizerDelegate {
     
     public static let shared = LCManager()
+
+    public var actions: [UIAction] = [] {
+        didSet {
+            menuButton.menu = makeMenu()
+            if menuButton.menu?.children.isEmpty ?? false {
+                menuButton.isHidden = true
+            }
+        }
+    }
+    public var hideActionEnabled: Bool = true
     
     /// Set the font size. The font can be set to a minimum value of 5.0 and a maximum value of 20.0. The default value is 8.
     public var fontSize: CGFloat = 8 {
@@ -339,6 +349,9 @@ public class LCManager: NSObject, UIGestureRecognizerDelegate {
         menuButton.menu = makeMenu()
         menuButton.showsMenuAsPrimaryAction = true
         consoleView.addSubview(menuButton)
+        if menuButton.menu?.children.isEmpty ?? false {
+            menuButton.isHidden = true
+        }
         
         let _ = unhideButton
         
@@ -609,36 +622,32 @@ public class LCManager: NSObject, UIGestureRecognizerDelegate {
     }
     
     func makeMenu() -> UIMenu {
-        
-        let copy = UIAction(title: "Copy",
-                            image: UIImage(systemName: "doc.on.doc"), handler: { _ in
-            self.copy()
-        })
-        
-        let resize = UIAction(title: "Resize Console",
-                              image: UIImage(systemName: "arrow.left.and.right.square"), handler: { _ in
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                self.resizeController.isActive.toggle()
-                self.resizeController.platterView.reveal()
-            }
-        })
-        
-        let clear = UIAction(title: "Clear Console",
-                             image: UIImage(systemName: "xmark.square"), handler: { _ in
-            self.clear()
-        })
-        
-        let consoleActions = UIMenu(title: "", options: .displayInline, children: [clear, resize])
-        
         var menuContent: [UIMenuElement] = []
-        
-        if consoleTextView.text != "" {
-            menuContent.append(contentsOf: [copy, consoleActions])
-        } else {
-            menuContent.append(resize)
+
+        if hideActionEnabled {
+            let hideAction = UIAction(title: "Hide",
+                                      image: UIImage(systemName: "xmark.square"), handler: { _ in
+                self.isVisible = false
+            })
+            menuContent.append(hideAction)
+        }
+
+        if !actions.isEmpty {
+            let userActions = UIMenu(
+                title: "",
+                options: .displayInline,
+                children: actions)
+            menuContent.append(userActions)
         }
 
         return UIMenu(title: "", children: menuContent)
+    }
+
+    public func resize() {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            self.resizeController.isActive.toggle()
+            self.resizeController.platterView.reveal()
+        }
     }
     
     @objc func longPressAction(recognizer: UILongPressGestureRecognizer) {
