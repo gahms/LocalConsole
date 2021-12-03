@@ -1009,18 +1009,6 @@ class InvertedTextView: UITextView {
     }
 }
 
-extension TimeInterval {
-    var formattedString: String? {
-        let formatter = DateComponentsFormatter()
-        formatter.allowedUnits = [.hour, .minute, .second]
-        return formatter.string(from: self)
-    }
-}
-
-fileprivate func _debugPrint(_ items: Any) {
-    print(items)
-}
-
 // MARK: Frame Rate Request
 /**
 An object that allows you to manually request an increased display refresh rate on ProMotion devices.
