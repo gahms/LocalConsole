@@ -123,7 +123,7 @@ class ResizeController {
                 
                 UIViewPropertyAnimator(duration: 0.75, dampingRatio: 1) {
                     
-                    let textView = LCManager.shared.consoleTextView
+                    let textView = LCManager.shared.bodyView
                     
                     textView.contentOffset.y = textView.contentSize.height - textView.bounds.size.height
                 }.startAnimation()
@@ -499,7 +499,7 @@ class PlatterView: UIView {
             
             // Resolves a text view frame animation bug that occurs when *decreasing* text view width.
             if LCManager.shared.consoleSize.width > LCManager.shared.defaultConsoleSize.width {
-                LCManager.shared.consoleTextView.frame.size.width = LCManager.shared.defaultConsoleSize.width - 4
+                LCManager.shared.bodyView.frame.size.width = LCManager.shared.defaultConsoleSize.width - 4
             }
             
             UIViewPropertyAnimator(duration: 0.4, dampingRatio: 1) {

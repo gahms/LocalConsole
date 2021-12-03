@@ -100,25 +100,25 @@ public class LCManager: NSObject, UIGestureRecognizerDelegate {
             
             // Update text view width.
             if consoleView.frame.size.width > resizeController.kMaxConsoleWidth {
-                consoleTextView.frame.size.width = resizeController.kMaxConsoleWidth - 2
+                bodyView.frame.size.width = resizeController.kMaxConsoleWidth - 2
             } else if consoleView.frame.size.width < resizeController.kMinConsoleWidth {
-                consoleTextView.frame.size.width = resizeController.kMinConsoleWidth - 2
+                bodyView.frame.size.width = resizeController.kMinConsoleWidth - 2
             } else {
-                consoleTextView.frame.size.width = consoleSize.width - 2
+                bodyView.frame.size.width = consoleSize.width - 2
             }
             
             // Update text view height.
             if consoleView.frame.size.height > ResizeController.kMaxConsoleHeight {
-                consoleTextView.frame.size.height = ResizeController.kMaxConsoleHeight - 2
+                bodyView.frame.size.height = ResizeController.kMaxConsoleHeight - 2
                 + (consoleView.frame.size.height - ResizeController.kMaxConsoleHeight) * 2 / 3
             } else if consoleView.frame.size.height < ResizeController.kMinConsoleHeight {
-                consoleTextView.frame.size.height = ResizeController.kMinConsoleHeight - 2
+                bodyView.frame.size.height = ResizeController.kMinConsoleHeight - 2
                 + (consoleView.frame.size.height - ResizeController.kMinConsoleHeight) * 2 / 3
             } else {
-                consoleTextView.frame.size.height = consoleSize.height - 2
+                bodyView.frame.size.height = consoleSize.height - 2
             }
             
-            consoleTextView.contentOffset.y = consoleTextView.contentSize.height - consoleTextView.bounds.size.height
+            bodyView.contentOffset.y = bodyView.contentSize.height - bodyView.bounds.size.height
             
             // TODO: Snap to nearest position.
             
@@ -141,8 +141,12 @@ public class LCManager: NSObject, UIGestureRecognizerDelegate {
         return v
     }()
     
-    lazy var consoleTextView: UIScrollView = UIScrollView()
-    
+    lazy var bodyView: UIScrollView = UIScrollView()
+    var userBodyView: UIView? = nil
+    var userBodyDidChange: Bool = false
+    var userBodyViewFixHeight: Bool = false
+    var userBodyViewFixWidth: Bool = true
+
     /// Button that reveals menu.
     lazy var menuButton = UIButton()
     
@@ -284,14 +288,14 @@ public class LCManager: NSObject, UIGestureRecognizerDelegate {
         consoleView.addSubview(borderView)
         
         // Configure text view.
-        consoleTextView.frame = CGRect(x: 1, y: 1, width: consoleSize.width - 2, height: consoleSize.height - 2)
-        consoleTextView.backgroundColor = .clear
-        consoleTextView.showsVerticalScrollIndicator = false
-        consoleTextView.contentInsetAdjustmentBehavior = .never
-        consoleView.addSubview(consoleTextView)
+        bodyView.frame = CGRect(x: 1, y: 1, width: consoleSize.width - 2, height: consoleSize.height - 2)
+        bodyView.backgroundColor = .clear
+        bodyView.showsVerticalScrollIndicator = false
+        bodyView.contentInsetAdjustmentBehavior = .never
+        consoleView.addSubview(bodyView)
         
-        consoleTextView.layer.cornerRadius = consoleView.layer.cornerRadius - 2
-        consoleTextView.layer.cornerCurve = .continuous
+        bodyView.layer.cornerRadius = consoleView.layer.cornerRadius - 2
+        bodyView.layer.cornerCurve = .continuous
         
         // Configure gesture recognizers.
         panRecognizer.maximumNumberOfTouches = 1
@@ -362,7 +366,7 @@ public class LCManager: NSObject, UIGestureRecognizerDelegate {
                 consoleView.layer.removeAllAnimations()
                 lumaView.layer.removeAllAnimations()
                 menuButton.layer.removeAllAnimations()
-                consoleTextView.layer.removeAllAnimations()
+                bodyView.layer.removeAllAnimations()
             }
         }
         
@@ -447,18 +451,71 @@ public class LCManager: NSObject, UIGestureRecognizerDelegate {
     }
     
     // MARK: - Public
-    
+
+    public func setBody(view: UIView, fixHeight: Bool = true, fixWidth: Bool = true) {
+        view.translatesAutoresizingMaskIntoConstraints = false
+        userBodyView = view
+        userBodyViewFixHeight = fixHeight
+        userBodyViewFixWidth = fixWidth
+
+        userBodyDidChange = true
+        configureBody()
+    }
+
+    func configureBody() {
+        guard isVisible else { return }
+        guard let userBodyView = userBodyView else { return }
+        guard userBodyDidChange else { return }
+
+        for v in bodyView.subviews {
+            v.removeFromSuperview()
+        }
+        bodyView.addSubview(userBodyView)
+
+        NSLayoutConstraint.activate([
+            userBodyView.topAnchor
+                .constraint(equalTo: bodyView.contentLayoutGuide.topAnchor),
+            userBodyView.bottomAnchor
+                .constraint(equalTo: bodyView.contentLayoutGuide.bottomAnchor),
+            userBodyView.leadingAnchor
+                .constraint(equalTo: bodyView.contentLayoutGuide.leadingAnchor),
+            userBodyView.trailingAnchor
+                .constraint(equalTo: bodyView.contentLayoutGuide.trailingAnchor)
+        ])
+
+        let contentViewCenterY = userBodyView.centerYAnchor
+            .constraint(equalTo: bodyView.centerYAnchor)
+        contentViewCenterY.priority = .defaultLow
+
+        let parentView = bodyView.superview!
+        let contentViewHeight = userBodyView.heightAnchor
+            .constraint(greaterThanOrEqualTo: parentView.heightAnchor)
+        contentViewHeight.priority = .defaultLow
+
+        NSLayoutConstraint.activate([
+            userBodyView.centerXAnchor.constraint(equalTo: bodyView.centerXAnchor),
+            contentViewCenterY,
+            contentViewHeight
+        ])
+
+        userBodyDidChange = false
+    }
+
     public var isVisible = false {
         didSet {
             guard oldValue != isVisible else { return }
             
             if isVisible {
-                
                 if !isConsoleConfigured {
                     DispatchQueue.main.async { [self] in
                         configureWindow()
                         configureConsole()
                         isConsoleConfigured = true
+                    }
+                }
+                if userBodyDidChange {
+                    DispatchQueue.main.async { [self] in
+                        configureBody()
                     }
                 }
                 
@@ -490,7 +547,6 @@ public class LCManager: NSObject, UIGestureRecognizerDelegate {
     }
     
     var grabberMode: Bool = false {
-        
         didSet {
             guard oldValue != grabberMode else { return }
             
@@ -501,7 +557,7 @@ public class LCManager: NSObject, UIGestureRecognizerDelegate {
                 consoleView.layoutIfNeeded()
                 
                 UIViewPropertyAnimator(duration: 0.3, dampingRatio: 1) { [self] in
-                    consoleTextView.alpha = 0
+                    bodyView.alpha = 0
                     menuButton.alpha = 0
                     borderView.alpha = 0
                 }.startAnimation()
@@ -517,7 +573,7 @@ public class LCManager: NSObject, UIGestureRecognizerDelegate {
                     consoleView.layoutIfNeeded()
                 }.startAnimation(afterDelay: 0.06)
                 
-                consoleTextView.isUserInteractionEnabled = false
+                bodyView.isUserInteractionEnabled = false
                 unhideButton.isHidden = false
                 
             } else {
@@ -530,7 +586,7 @@ public class LCManager: NSObject, UIGestureRecognizerDelegate {
                 }.startAnimation()
                 
                 UIViewPropertyAnimator(duration: 0.3, dampingRatio: 1) { [self] in
-                    consoleTextView.alpha = 1
+                    bodyView.alpha = 1
                     menuButton.alpha = 1
                     borderView.alpha = 1
                 }.startAnimation(afterDelay: 0.2)
@@ -539,7 +595,7 @@ public class LCManager: NSObject, UIGestureRecognizerDelegate {
                     lumaView.foregroundView.alpha = 1
                 }.startAnimation()
                 
-                consoleTextView.isUserInteractionEnabled = true
+                bodyView.isUserInteractionEnabled = true
                 unhideButton.isHidden = true
             }
         }
@@ -625,7 +681,7 @@ public class LCManager: NSObject, UIGestureRecognizerDelegate {
             
             UIViewPropertyAnimator(duration: 0.4, dampingRatio: 1) { [self] in
                 consoleView.transform = .init(scaleX: 1.04, y: 1.04)
-                consoleTextView.alpha = 0.5
+                bodyView.alpha = 0.5
                 menuButton.alpha = 0.5
             }.startAnimation()
         case .cancelled, .ended:
@@ -638,7 +694,7 @@ public class LCManager: NSObject, UIGestureRecognizerDelegate {
             
             UIViewPropertyAnimator(duration: 0.4, dampingRatio: 1) { [self] in
                 if !grabberMode {
-                    consoleTextView.alpha = 1
+                    bodyView.alpha = 1
                     menuButton.alpha = 1
                 }
             }.startAnimation()
@@ -731,7 +787,7 @@ public class LCManager: NSObject, UIGestureRecognizerDelegate {
         
         UIViewPropertyAnimator(duration: 0.4, dampingRatio: 1) { [self] in
             if !grabberMode {
-                consoleTextView.alpha = 1
+                bodyView.alpha = 1
                 if !self.resizeController.isActive {
                     menuButton.alpha = 1
                 }
