@@ -1,5 +1,5 @@
 //
-//  LocalConsole.swift
+//  OverlayWindowManager.swift
 //
 //  Created by Duraid Abdul.
 //  Copyright © 2021 Duraid Abdul. All rights reserved.
@@ -9,7 +9,7 @@ import UIKit
 import SwiftUI
 
 @available(iOSApplicationExtension, unavailable)
-public class LCManager: NSObject, UIGestureRecognizerDelegate {
+public class OverlayWindowManager: NSObject, UIGestureRecognizerDelegate {
     public enum DefaultWindowPos {
         case topLeft
         case topRight
@@ -17,7 +17,7 @@ public class LCManager: NSObject, UIGestureRecognizerDelegate {
         case bottomRight
     }
     
-    public static let shared = LCManager()
+    public static let shared = OverlayWindowManager()
 
     public var actions: [UIAction] = [] {
         didSet {
@@ -73,8 +73,8 @@ public class LCManager: NSObject, UIGestureRecognizerDelegate {
             }.startAnimation()
             grabberMode = false
             
-            UserDefaults.standard.set(consoleView.center.x, forKey: "LocalConsole_X")
-            UserDefaults.standard.set(consoleView.center.y, forKey: "LocalConsole_Y")
+            UserDefaults.standard.set(consoleView.center.x, forKey: "OverlayWindow_X")
+            UserDefaults.standard.set(consoleView.center.y, forKey: "OverlayWindow_Y")
         }), for: .touchUpInside)
         
         consoleView.addSubview(button)
@@ -122,8 +122,8 @@ public class LCManager: NSObject, UIGestureRecognizerDelegate {
             
             // TODO: Snap to nearest position.
             
-            UserDefaults.standard.set(consoleSize.width, forKey: "LocalConsole_Width")
-            UserDefaults.standard.set(consoleSize.height, forKey: "LocalConsole_Height")
+            UserDefaults.standard.set(consoleSize.width, forKey: "OverlayWindow_Width")
+            UserDefaults.standard.set(consoleSize.height, forKey: "OverlayWindow_Height")
         }
     }
     
@@ -263,8 +263,8 @@ public class LCManager: NSObject, UIGestureRecognizerDelegate {
     lazy var initialViewLocation: CGPoint = .zero
     
     func configureConsole() {
-        consoleSize = CGSize(width: UserDefaults.standard.object(forKey: "LocalConsole_Width") as? CGFloat ?? consoleSize.width,
-                             height: UserDefaults.standard.object(forKey: "LocalConsole_Height") as? CGFloat ?? consoleSize.height)
+        consoleSize = CGSize(width: UserDefaults.standard.object(forKey: "OverlayWindow_Width") as? CGFloat ?? consoleSize.width,
+                             height: UserDefaults.standard.object(forKey: "OverlayWindow_Height") as? CGFloat ?? consoleSize.height)
         
         
         consoleView.layer.shadowRadius = 16
@@ -439,9 +439,9 @@ public class LCManager: NSObject, UIGestureRecognizerDelegate {
         }
 
         let cachedConsolePosition = CGPoint(
-            x: UserDefaults.standard.object(forKey: "LocalConsole_X") as? CGFloat
+            x: UserDefaults.standard.object(forKey: "OverlayWindow_X") as? CGFloat
             ?? allEndpoints[defaultPosIndex].x,
-            y: UserDefaults.standard.object(forKey: "LocalConsole_Y") as? CGFloat
+            y: UserDefaults.standard.object(forKey: "OverlayWindow_Y") as? CGFloat
             ?? allEndpoints[defaultPosIndex].y)
 
         // Update console center so possibleEndpoints are calculated correctly.
@@ -758,8 +758,8 @@ public class LCManager: NSObject, UIGestureRecognizerDelegate {
             }
             positionAnimator.startAnimation()
             
-            UserDefaults.standard.set(nearestTargetPosition.x, forKey: "LocalConsole_X")
-            UserDefaults.standard.set(nearestTargetPosition.y, forKey: "LocalConsole_Y")
+            UserDefaults.standard.set(nearestTargetPosition.x, forKey: "OverlayWindow_X")
+            UserDefaults.standard.set(nearestTargetPosition.y, forKey: "OverlayWindow_Y")
             
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
                 self.grabberMode = nearestTargetPosition.x < 0 || nearestTargetPosition.x > self.windowSize.width

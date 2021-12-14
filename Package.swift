@@ -4,15 +4,15 @@
 import PackageDescription
 
 let package = Package(
-    name: "LocalConsole",
+    name: "OverlayWindow",
     platforms: [
         .iOS(.v14),
     ],
     products: [
         .library(
-            name: "LocalConsole", targets: ["LocalConsole"]),
+            name: "OverlayWindow", targets: ["OverlayWindow"]),
     ],
     targets: [
-        .target(name: "LocalConsole", dependencies: [])
+        .target(name: "OverlayWindow", dependencies: [])
     ]
 )
