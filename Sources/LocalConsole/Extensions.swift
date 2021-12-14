@@ -8,15 +8,9 @@
 import UIKit
 
 extension UIScreen {
-    
     /// Screen size.
     static var size: CGSize {
         return UIScreen.main.bounds.size
-    }
-    
-    static var portraitSize: CGSize {
-        return CGSize(width: UIScreen.main.nativeBounds.width / UIScreen.main.nativeScale,
-                      height: UIScreen.main.nativeBounds.height / UIScreen.main.nativeScale)
     }
     
     static var hasRoundedCorners = UIScreen.main.value(forKey: "_" + "display" + "Corner" + "Radius") as! CGFloat > 0

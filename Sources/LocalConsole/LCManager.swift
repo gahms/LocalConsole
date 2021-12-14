@@ -8,49 +8,40 @@
 import UIKit
 import SwiftUI
 
-var GLOBAL_BORDER_TRACKERS: [BorderManager] = []
-
 @available(iOSApplicationExtension, unavailable)
 public class LCManager: NSObject, UIGestureRecognizerDelegate {
-    
-    public static let shared = LCManager()
-    
-    /// Set the font size. The font can be set to a minimum value of 5.0 and a maximum value of 20.0. The default value is 8.
-    public var fontSize: CGFloat = 8 {
-        didSet {
-            guard fontSize >= 4 else { fontSize = 4; return }
-            guard fontSize <= 20 else { fontSize = 20; return }
-            
-            setAttributedText(consoleTextView.text)
-        }
+    public enum DefaultWindowPos {
+        case topLeft
+        case topRight
+        case bottomLeft
+        case bottomRight
     }
     
-    var isConsoleConfigured = false
-    
-    /// A high performance text tracker that only updates the view's text if the view is visible. This allows the app to run print to the console with virtually no performance implications when the console isn't visible.
-    var currentText: String = "" {
+    public static let shared = LCManager()
+
+    public var actions: [UIAction] = [] {
         didSet {
-            if isVisible {
-                
-                // Ensure we are performing UI updates on the main thread.
-                DispatchQueue.main.async {
-                    
-                    // Ensure the console doesn't get caught into any external animation blocks.
-                    UIView.performWithoutAnimation {
-                        self.commitTextChanges(requestMenuUpdate: oldValue == "" || (oldValue != "" && self.currentText == ""))
-                    }
-                }
+            menuButton.menu = makeMenu()
+            if menuButton.menu?.children.isEmpty ?? false {
+                menuButton.isHidden = true
             }
         }
     }
+    public var hideActionEnabled: Bool = true
+    public var defaultWindowPos: DefaultWindowPos = .topLeft
     
+    var isConsoleConfigured = false
     let defaultConsoleSize = CGSize(width: 240, height: 148)
     
     lazy var borderView = UIView()
     
     var lumaWidthAnchor: NSLayoutConstraint!
     var lumaHeightAnchor: NSLayoutConstraint!
-    
+
+    lazy var resizeController: ResizeController = {
+        ResizeController(parentSize: windowSize)
+    }()
+
     lazy var lumaView: LumaView = {
         let lumaView = LumaView()
         lumaView.foregroundView.backgroundColor = .black
@@ -108,26 +99,26 @@ public class LCManager: NSObject, UIGestureRecognizerDelegate {
             consoleView.frame.size = consoleSize
             
             // Update text view width.
-            if consoleView.frame.size.width > ResizeController.kMaxConsoleWidth {
-                consoleTextView.frame.size.width = ResizeController.kMaxConsoleWidth - 2
-            } else if consoleView.frame.size.width < ResizeController.kMinConsoleWidth {
-                consoleTextView.frame.size.width = ResizeController.kMinConsoleWidth - 2
+            if consoleView.frame.size.width > resizeController.kMaxConsoleWidth {
+                bodyView.frame.size.width = resizeController.kMaxConsoleWidth - 2
+            } else if consoleView.frame.size.width < resizeController.kMinConsoleWidth {
+                bodyView.frame.size.width = resizeController.kMinConsoleWidth - 2
             } else {
-                consoleTextView.frame.size.width = consoleSize.width - 2
+                bodyView.frame.size.width = consoleSize.width - 2
             }
             
             // Update text view height.
             if consoleView.frame.size.height > ResizeController.kMaxConsoleHeight {
-                consoleTextView.frame.size.height = ResizeController.kMaxConsoleHeight - 2
+                bodyView.frame.size.height = ResizeController.kMaxConsoleHeight - 2
                 + (consoleView.frame.size.height - ResizeController.kMaxConsoleHeight) * 2 / 3
             } else if consoleView.frame.size.height < ResizeController.kMinConsoleHeight {
-                consoleTextView.frame.size.height = ResizeController.kMinConsoleHeight - 2
+                bodyView.frame.size.height = ResizeController.kMinConsoleHeight - 2
                 + (consoleView.frame.size.height - ResizeController.kMinConsoleHeight) * 2 / 3
             } else {
-                consoleTextView.frame.size.height = consoleSize.height - 2
+                bodyView.frame.size.height = consoleSize.height - 2
             }
             
-            consoleTextView.contentOffset.y = consoleTextView.contentSize.height - consoleTextView.bounds.size.height
+            bodyView.contentOffset.y = bodyView.contentSize.height - bodyView.bounds.size.height
             
             // TODO: Snap to nearest position.
             
@@ -138,14 +129,24 @@ public class LCManager: NSObject, UIGestureRecognizerDelegate {
     
     /// Strong reference keeps the window alive.
     var consoleWindow: ConsoleWindow?
+    var contentView: UIView {
+        consoleViewController.view!
+    }
     
     // The console needs a parent view controller in order to display context menus.
-    lazy var viewController = UIViewController()
-    lazy var consoleView = viewController.view!
+    lazy var consoleViewController = ConsoleViewController()
+    lazy var consoleView: UIView = {
+        let v = UIView()
+        consoleViewController.view!.addSubview(v)
+        return v
+    }()
     
-    /// Text view that displays printed items.
-    lazy var consoleTextView = InvertedTextView()
-    
+    lazy var bodyView: UIScrollView = UIScrollView()
+    var userBodyView: UIView? = nil
+    var userBodyDidChange: Bool = false
+    var userBodyViewFixHeight: Bool = false
+    var userBodyViewFixWidth: Bool = true
+
     /// Button that reveals menu.
     lazy var menuButton = UIButton()
     
@@ -157,51 +158,76 @@ public class LCManager: NSObject, UIGestureRecognizerDelegate {
     
     lazy var panRecognizer = UIPanGestureRecognizer(target: self, action: #selector(consolePiPPanner(recognizer:)))
     lazy var longPressRecognizer = UILongPressGestureRecognizer(target: self, action: #selector(longPressAction(recognizer:)))
-    
-    /// Gesture endpoints. Each point represents a corner of the screen. TODO: Handle screen rotation.
-    var possibleEndpoints: [CGPoint] {
-        
-        if consoleSize.width < UIScreen.portraitSize.width - 112 {
-            
+
+    var windowSize: CGSize {
+        consoleWindow?.frame.size ?? UIScreen.size
+    }
+
+    var allEndpoints: [CGPoint] {
+        if consoleSize.width < windowSize.width - 112 {
             // Four endpoints, one for each corner.
-            var endpoints = [
-                
+            return [
                 // Top endpoints.
                 CGPoint(x: consoleSize.width / 2 + 12,
-                        y: (UIScreen.hasRoundedCorners ? 38 : 16) + consoleSize.height / 2 + 12),
-                CGPoint(x: UIScreen.portraitSize.width - consoleSize.width / 2 - 12,
-                        y: (UIScreen.hasRoundedCorners ? 38 : 16) + consoleSize.height / 2 + 12),
-                
+                        y: (UIScreen.hasRoundedCorners ? 38 : 16)
+                        + consoleSize.height / 2 + 12),
+                CGPoint(x: windowSize.width - consoleSize.width / 2 - 12,
+                        y: (UIScreen.hasRoundedCorners ? 38 : 16)
+                        + consoleSize.height / 2 + 12),
+
                 // Bottom endpoints.
                 CGPoint(x: consoleSize.width / 2 + 12,
-                        y: UIScreen.portraitSize.height - consoleSize.height / 2 - (keyboardHeight ?? consoleWindow?.safeAreaInsets.bottom ?? 0) - 12),
-                CGPoint(x: UIScreen.portraitSize.width - consoleSize.width / 2 - 12,
-                        y: UIScreen.portraitSize.height - consoleSize.height / 2 - (keyboardHeight ?? consoleWindow?.safeAreaInsets.bottom ?? 0) - 12)]
-            
+                        y: windowSize.height - consoleSize.height / 2
+                        - (keyboardHeight ?? consoleWindow?.safeAreaInsets.bottom ?? 0)
+                        - 12),
+                CGPoint(x: windowSize.width - consoleSize.width / 2 - 12,
+                        y: windowSize.height - consoleSize.height / 2
+                        - (keyboardHeight ?? consoleWindow?.safeAreaInsets.bottom ?? 0)
+                        - 12)
+            ]
+        }
+        else {
+            // Two endpoints, one for the top, one for the bottom..
+            return [
+                CGPoint(x: windowSize.width / 2,
+                        y: (UIScreen.hasRoundedCorners ? 38 : 16)
+                        + consoleSize.height / 2 + 12),
+                CGPoint(x: windowSize.width / 2,
+                        y: windowSize.height - consoleSize.height / 2
+                        - (keyboardHeight ?? consoleWindow?.safeAreaInsets.bottom ?? 0)
+                        - 12)
+            ]
+        }
+    }
+
+    /// Gesture endpoints. Each point represents a corner of the screen. TODO: Handle screen rotation.
+    var possibleEndpoints: [CGPoint] {
+        var endpoints = allEndpoints
+        if consoleSize.width < windowSize.width - 112 {
             if consoleView.frame.minX <= 0 {
-                
                 // Left edge endpoints.
                 endpoints = [endpoints[0], endpoints[2]]
                 
                 // Left edge hiding endpoints.
-                if consoleView.center.y < (UIScreen.portraitSize.height - (temporaryKeyboardHeightValueTracker ?? 0)) / 2 {
+                if consoleView.center.y < (windowSize.height - (temporaryKeyboardHeightValueTracker ?? 0)) / 2 {
                     endpoints.append(CGPoint(x: -consoleSize.width / 2 + 28,
                                              y: endpoints[0].y))
                 } else {
                     endpoints.append(CGPoint(x: -consoleSize.width / 2 + 28,
                                              y: endpoints[1].y))
                 }
-            } else if consoleView.frame.maxX >= UIScreen.portraitSize.width {
-                
+            } else if consoleView.frame.maxX >= windowSize.width {
                 // Right edge endpoints.
                 endpoints = [endpoints[1], endpoints[3]]
                 
                 // Right edge hiding endpoints.
-                if consoleView.center.y < (UIScreen.portraitSize.height - (temporaryKeyboardHeightValueTracker ?? 0)) / 2 {
-                    endpoints.append(CGPoint(x: UIScreen.portraitSize.width + consoleSize.width / 2 - 28,
+                if consoleView.center.y < (windowSize.height - (temporaryKeyboardHeightValueTracker ?? 0)) / 2 {
+                    endpoints.append(CGPoint(x: windowSize.width
+                                             + consoleSize.width / 2 - 28,
                                              y: endpoints[0].y))
                 } else {
-                    endpoints.append(CGPoint(x: UIScreen.portraitSize.width + consoleSize.width / 2 - 28,
+                    endpoints.append(CGPoint(x: windowSize.width
+                                             + consoleSize.width / 2 - 28,
                                              y: endpoints[1].y))
                 }
             }
@@ -209,31 +235,23 @@ public class LCManager: NSObject, UIGestureRecognizerDelegate {
             return endpoints
             
         } else {
-            
-            // Two endpoints, one for the top, one for the bottom..
-            var endpoints = [CGPoint(x: UIScreen.portraitSize.width / 2,
-                                     y: (UIScreen.hasRoundedCorners ? 38 : 16) + consoleSize.height / 2 + 12),
-                             CGPoint(x: UIScreen.portraitSize.width / 2,
-                                     y: UIScreen.portraitSize.height - consoleSize.height / 2 - (keyboardHeight ?? consoleWindow?.safeAreaInsets.bottom ?? 0) - 12)]
-            
             if consoleView.frame.minX <= 0 {
-                
                 // Left edge hiding endpoints.
-                if consoleView.center.y < (UIScreen.portraitSize.height - (temporaryKeyboardHeightValueTracker ?? 0)) / 2 {
+                if consoleView.center.y < (windowSize.height - (temporaryKeyboardHeightValueTracker ?? 0)) / 2 {
                     endpoints.append(CGPoint(x: -consoleSize.width / 2 + 28,
                                              y: endpoints[0].y))
                 } else {
                     endpoints.append(CGPoint(x: -consoleSize.width / 2 + 28,
                                              y: endpoints[1].y))
                 }
-            } else if consoleView.frame.maxX >= UIScreen.portraitSize.width {
+            } else if consoleView.frame.maxX >= windowSize.width {
                 
                 // Right edge hiding endpoints.
-                if consoleView.center.y < (UIScreen.portraitSize.height - (temporaryKeyboardHeightValueTracker ?? 0)) / 2 {
-                    endpoints.append(CGPoint(x: UIScreen.portraitSize.width + consoleSize.width / 2 - 28,
+                if consoleView.center.y < (windowSize.height - (temporaryKeyboardHeightValueTracker ?? 0)) / 2 {
+                    endpoints.append(CGPoint(x: windowSize.width + consoleSize.width / 2 - 28,
                                              y: endpoints[0].y))
                 } else {
-                    endpoints.append(CGPoint(x: UIScreen.portraitSize.width + consoleSize.width / 2 - 28,
+                    endpoints.append(CGPoint(x: windowSize.width + consoleSize.width / 2 - 28,
                                              y: endpoints[1].y))
                 }
             }
@@ -270,18 +288,14 @@ public class LCManager: NSObject, UIGestureRecognizerDelegate {
         consoleView.addSubview(borderView)
         
         // Configure text view.
-        consoleTextView.frame = CGRect(x: 1, y: 1, width: consoleSize.width - 2, height: consoleSize.height - 2)
-        consoleTextView.isEditable = false
-        consoleTextView.backgroundColor = .clear
-        consoleTextView.textContainerInset = UIEdgeInsets(top: 10, left: 10, bottom: 10, right: 10)
+        bodyView.frame = CGRect(x: 1, y: 1, width: consoleSize.width - 2, height: consoleSize.height - 2)
+        bodyView.backgroundColor = .clear
+        bodyView.showsVerticalScrollIndicator = false
+        bodyView.contentInsetAdjustmentBehavior = .never
+        consoleView.addSubview(bodyView)
         
-        consoleTextView.isSelectable = false
-        consoleTextView.showsVerticalScrollIndicator = false
-        consoleTextView.contentInsetAdjustmentBehavior = .never
-        consoleView.addSubview(consoleTextView)
-        
-        consoleTextView.layer.cornerRadius = consoleView.layer.cornerRadius - 2
-        consoleTextView.layer.cornerCurve = .continuous
+        bodyView.layer.cornerRadius = consoleView.layer.cornerRadius - 2
+        bodyView.layer.cornerCurve = .continuous
         
         // Configure gesture recognizers.
         panRecognizer.maximumNumberOfTouches = 1
@@ -327,6 +341,9 @@ public class LCManager: NSObject, UIGestureRecognizerDelegate {
         menuButton.menu = makeMenu()
         menuButton.showsMenuAsPrimaryAction = true
         consoleView.addSubview(menuButton)
+        if menuButton.menu?.children.isEmpty ?? false {
+            menuButton.isHidden = true
+        }
         
         let _ = unhideButton
         
@@ -342,14 +359,14 @@ public class LCManager: NSObject, UIGestureRecognizerDelegate {
         func updateConsoleOrigin() {
             snapToCachedEndpoint()
             
-            if consoleView.center.x < 0 || consoleView.center.x > UIScreen.portraitSize.width {
+            if consoleView.center.x < 0 || consoleView.center.x > windowSize.width {
                 grabberMode = true
                 scrollLocked = !grabberMode
                 
                 consoleView.layer.removeAllAnimations()
                 lumaView.layer.removeAllAnimations()
                 menuButton.layer.removeAllAnimations()
-                consoleTextView.layer.removeAllAnimations()
+                bodyView.layer.removeAllAnimations()
             }
         }
         
@@ -361,17 +378,18 @@ public class LCManager: NSObject, UIGestureRecognizerDelegate {
                 .first
             
             if let windowScene = windowScene as? UIWindowScene {
-                
                 windowSceneFound = true
-                
-                consoleWindow = ConsoleWindow(windowScene: windowScene)
-                consoleWindow?.frame = UIScreen.main.bounds
-                consoleWindow?.windowLevel = UIWindow.Level.statusBar
-                consoleWindow?.isHidden = false
-                consoleWindow?.addSubview(consoleView)
-                
+
                 UIWindow.swizzleStatusBarAppearanceOverride
-                
+                let window = ConsoleWindow(windowScene: windowScene)
+                window.frame = UIScreen.main.bounds
+                //let level = UIWindow.Level(UIWindow.Level.statusBar.rawValue + 1)
+                let level = UIWindow.Level.statusBar
+                window.windowLevel = level
+                window.rootViewController = consoleViewController
+                window.isHidden = false
+                consoleWindow = window
+
                 updateConsoleOrigin()
             }
         }
@@ -397,21 +415,97 @@ public class LCManager: NSObject, UIGestureRecognizerDelegate {
     }
     
     func snapToCachedEndpoint() {
-        let cachedConsolePosition = CGPoint(x: UserDefaults.standard.object(forKey: "LocalConsole_X") as? CGFloat ?? possibleEndpoints.first!.x,
-                                            y: UserDefaults.standard.object(forKey: "LocalConsole_Y") as? CGFloat ?? possibleEndpoints.first!.y)
-        
-        consoleView.center = cachedConsolePosition // Update console center so possibleEndpoints are calculated correctly.
-        consoleView.center = nearestTargetTo(cachedConsolePosition, possibleTargets: possibleEndpoints)
+        let defaultPosIndex: Int
+        let endpoints = allEndpoints
+        if endpoints.count < 3 {
+            switch defaultWindowPos {
+            case .topLeft, .topRight:
+                defaultPosIndex = 0
+            case .bottomLeft, .bottomRight:
+                defaultPosIndex = 1
+            }
+        }
+        else {
+            switch defaultWindowPos {
+            case .topLeft:
+                defaultPosIndex = 0
+            case .topRight:
+                defaultPosIndex = 1
+            case .bottomLeft:
+                defaultPosIndex = 2
+            case .bottomRight:
+                defaultPosIndex = 3
+            }
+        }
+
+        let cachedConsolePosition = CGPoint(
+            x: UserDefaults.standard.object(forKey: "LocalConsole_X") as? CGFloat
+            ?? allEndpoints[defaultPosIndex].x,
+            y: UserDefaults.standard.object(forKey: "LocalConsole_Y") as? CGFloat
+            ?? allEndpoints[defaultPosIndex].y)
+
+        // Update console center so possibleEndpoints are calculated correctly.
+        consoleView.center = cachedConsolePosition
+        consoleView.center = nearestTargetTo(cachedConsolePosition,
+                                             possibleTargets: possibleEndpoints)
     }
     
     // MARK: - Public
-    
+
+    public func setBody(view: UIView, fixHeight: Bool = true, fixWidth: Bool = true) {
+        view.translatesAutoresizingMaskIntoConstraints = false
+        userBodyView = view
+        userBodyViewFixHeight = fixHeight
+        userBodyViewFixWidth = fixWidth
+
+        userBodyDidChange = true
+        configureBody()
+    }
+
+    func configureBody() {
+        guard isVisible else { return }
+        guard let userBodyView = userBodyView else { return }
+        guard userBodyDidChange else { return }
+
+        for v in bodyView.subviews {
+            v.removeFromSuperview()
+        }
+        bodyView.addSubview(userBodyView)
+
+        NSLayoutConstraint.activate([
+            userBodyView.topAnchor
+                .constraint(equalTo: bodyView.contentLayoutGuide.topAnchor),
+            userBodyView.bottomAnchor
+                .constraint(equalTo: bodyView.contentLayoutGuide.bottomAnchor),
+            userBodyView.leadingAnchor
+                .constraint(equalTo: bodyView.contentLayoutGuide.leadingAnchor),
+            userBodyView.trailingAnchor
+                .constraint(equalTo: bodyView.contentLayoutGuide.trailingAnchor)
+        ])
+
+        let contentViewCenterY = userBodyView.centerYAnchor
+            .constraint(equalTo: bodyView.centerYAnchor)
+        contentViewCenterY.priority = .defaultLow
+
+        let parentView = bodyView.superview!
+        let contentViewHeight = userBodyView.heightAnchor
+            .constraint(greaterThanOrEqualTo: parentView.heightAnchor)
+        contentViewHeight.priority = .defaultLow
+
+        NSLayoutConstraint.activate([
+            userBodyView.centerXAnchor.constraint(equalTo: bodyView.centerXAnchor),
+            contentViewCenterY,
+            contentViewHeight
+        ])
+
+        userBodyDidChange = false
+    }
+
     public var isVisible = false {
         didSet {
             guard oldValue != isVisible else { return }
             
             if isVisible {
-                
                 if !isConsoleConfigured {
                     DispatchQueue.main.async { [self] in
                         configureWindow()
@@ -419,8 +513,11 @@ public class LCManager: NSObject, UIGestureRecognizerDelegate {
                         isConsoleConfigured = true
                     }
                 }
-                
-                commitTextChanges(requestMenuUpdate: true)
+                if userBodyDidChange {
+                    DispatchQueue.main.async { [self] in
+                        configureBody()
+                    }
+                }
                 
                 consoleView.transform = .init(scaleX: 0.9, y: 0.9)
                 UIViewPropertyAnimator(duration: 0.5, dampingRatio: 0.6) { [self] in
@@ -450,7 +547,6 @@ public class LCManager: NSObject, UIGestureRecognizerDelegate {
     }
     
     var grabberMode: Bool = false {
-        
         didSet {
             guard oldValue != grabberMode else { return }
             
@@ -461,7 +557,7 @@ public class LCManager: NSObject, UIGestureRecognizerDelegate {
                 consoleView.layoutIfNeeded()
                 
                 UIViewPropertyAnimator(duration: 0.3, dampingRatio: 1) { [self] in
-                    consoleTextView.alpha = 0
+                    bodyView.alpha = 0
                     menuButton.alpha = 0
                     borderView.alpha = 0
                 }.startAnimation()
@@ -477,7 +573,7 @@ public class LCManager: NSObject, UIGestureRecognizerDelegate {
                     consoleView.layoutIfNeeded()
                 }.startAnimation(afterDelay: 0.06)
                 
-                consoleTextView.isUserInteractionEnabled = false
+                bodyView.isUserInteractionEnabled = false
                 unhideButton.isHidden = false
                 
             } else {
@@ -490,7 +586,7 @@ public class LCManager: NSObject, UIGestureRecognizerDelegate {
                 }.startAnimation()
                 
                 UIViewPropertyAnimator(duration: 0.3, dampingRatio: 1) { [self] in
-                    consoleTextView.alpha = 1
+                    bodyView.alpha = 1
                     menuButton.alpha = 1
                     borderView.alpha = 1
                 }.startAnimation(afterDelay: 0.2)
@@ -499,31 +595,12 @@ public class LCManager: NSObject, UIGestureRecognizerDelegate {
                     lumaView.foregroundView.alpha = 1
                 }.startAnimation()
                 
-                consoleTextView.isUserInteractionEnabled = true
+                bodyView.isUserInteractionEnabled = true
                 unhideButton.isHidden = true
             }
         }
     }
-    
-    /// Print items to the console view.
-    public func print(_ items: Any) {
-        if currentText == "" {
-            currentText = "\(items)"
-        } else {
-            currentText = currentText + "\n\(items)"
-        }
-    }
-    
-    /// Clear text in the console view.
-    public func clear() {
-        currentText = ""
-    }
-    
-    /// Copy the console view text to the device's clipboard.
-    public func copy() {
-        UIPasteboard.general.string = consoleTextView.text
-    }
-    
+
     // MARK: - Private
     
     var temporaryKeyboardHeightValueTracker: CGFloat?
@@ -559,246 +636,37 @@ public class LCManager: NSObject, UIGestureRecognizerDelegate {
         keyboardHeight = nil
     }
     
-    private var debugBordersEnabled = false {
-        didSet {
-            
-            UIView.swizzleDebugBehaviour_UNTRACKABLE_TOGGLE()
-            
-            guard debugBordersEnabled else {
-                GLOBAL_BORDER_TRACKERS.forEach {
-                    $0.deactivate()
-                }
-                GLOBAL_BORDER_TRACKERS = []
-                return
-            }
-            
-            func subviewsRecursive(in _view: UIView) -> [UIView] {
-                return _view.subviews + _view.subviews.flatMap { subviewsRecursive(in: $0) }
-            }
-            
-            var allViews: [UIView] = []
-            
-            for window in UIApplication.shared.windows {
-                allViews.append(contentsOf: subviewsRecursive(in: window))
-            }
-            allViews.forEach {
-                let tracker = BorderManager(view: $0)
-                GLOBAL_BORDER_TRACKERS.append(tracker)
-                tracker.activate()
-            }
-        }
-    }
-    
     var dynamicReportTimer: Timer? {
         willSet { dynamicReportTimer?.invalidate() }
     }
     
-    func systemReport() {
-        DispatchQueue.main.async { [self] in
-            
-            if currentText != "" { print("\n") }
-            
-            dynamicReportTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { timer in
-                var _currentText = currentText
-                
-                // To optimize performance, only scan the last 2500 characters of text for system report changes.
-                let range: NSRange = {
-                    if _currentText.count <= 2500 {
-                        return NSMakeRange(0, _currentText.count)
-                    }
-                    return NSMakeRange(_currentText.count - 2500, 2500)
-                }()
-                
-                let regex0 = try! NSRegularExpression(pattern: "Thermal State:      .*", options: NSRegularExpression.Options.caseInsensitive)
-                _currentText = regex0.stringByReplacingMatches(in: _currentText, options: [], range: range, withTemplate: "Thermal State:      \(SystemReport.shared.thermalState)")
-                
-                let regex1 = try! NSRegularExpression(pattern: "System Uptime:      .*", options: NSRegularExpression.Options.caseInsensitive)
-                _currentText = regex1.stringByReplacingMatches(in: _currentText, options: [], range: range, withTemplate: "System Uptime:      \(ProcessInfo.processInfo.systemUptime.formattedString!)")
-                
-                let regex2 = try! NSRegularExpression(pattern: "Low Power Mode:     .*", options: NSRegularExpression.Options.caseInsensitive)
-                _currentText = regex2.stringByReplacingMatches(in: _currentText, options: [], range: range, withTemplate: "Low Power Mode:     \(ProcessInfo.processInfo.isLowPowerModeEnabled)")
-                
-                if currentText != _currentText {
-                    currentText = _currentText
-                } else {
-                    
-                    // Invalidate the timer if there is no longer anything to update.
-                    timer.invalidate()
-                }
-            }
-            
-            print(
-                  """
-                  Model Name:         \(SystemReport.shared.gestaltMarketingName)
-                  Model Identifier:   \(SystemReport.shared.gestaltModelIdentifier)
-                  Architecture:       \(SystemReport.shared.gestaltArchitecture)
-                  Firmware:           \(SystemReport.shared.gestaltFirmwareVersion)
-                  Kernel Version:     \(SystemReport.shared.kernel) \(SystemReport.shared.kernelVersion)
-                  System Version:     \(SystemReport.shared.versionString)
-                  OS Compile Date:    \(SystemReport.shared.compileDate)
-                  Memory:             \(round(100 * Double(ProcessInfo.processInfo.physicalMemory) * pow(10, -9)) / 100) GB
-                  Processor Cores:    \(Int(ProcessInfo.processInfo.processorCount))
-                  Thermal State:      \(SystemReport.shared.thermalState)
-                  System Uptime:      \(ProcessInfo.processInfo.systemUptime.formattedString!)
-                  Low Power Mode:     \(ProcessInfo.processInfo.isLowPowerModeEnabled)
-                  """
-            )
-        }
-    }
-    
-    func displayReport() {
-        DispatchQueue.main.async { [self] in
-            
-            if currentText != "" { print("\n") }
-            
-            print(
-                  """
-                  Screen Size:            \(UIScreen.main.bounds.size)
-                  Screen Corner Radius:   \(UIScreen.main.value(forKey: "_displ" + "ayCorn" + "erRa" + "dius") as! CGFloat)
-                  Screen Scale:           \(UIScreen.main.scale)
-                  Max Frame Rate:         \(UIScreen.main.maximumFramesPerSecond) Hz
-                  Brightness:             \(String(format: "%.2f", UIScreen.main.brightness))
-                  """
-            )
-        }
-    }
-    
-    func commitTextChanges(requestMenuUpdate menuUpdateRequested: Bool) {
-        
-        if consoleTextView.contentOffset.y > consoleTextView.contentSize.height - consoleTextView.bounds.size.height - 20 {
-            
-            // Weird, weird fix that makes the scroll view bottom pinning system work.
-            consoleTextView.isScrollEnabled.toggle()
-            consoleTextView.isScrollEnabled.toggle()
-            
-            consoleTextView.pendingOffsetChange = true
-        }
-        
-        setAttributedText(currentText)
-        
-        if menuUpdateRequested {
-            // Update the context menu to show the clipboard/clear actions.
-            menuButton.menu = makeMenu()
-        }
-    }
-    
-    func setAttributedText(_ string: String) {
-        let paragraphStyle = NSMutableParagraphStyle()
-        paragraphStyle.headIndent = 7
-        
-        let attributes: [NSAttributedString.Key: Any] = [
-            .paragraphStyle: paragraphStyle,
-            .foregroundColor: UIColor.white,
-            .font: UIFont.systemFont(ofSize: fontSize, weight: .semibold, design: .monospaced)
-        ]
-        
-        consoleTextView.attributedText = NSAttributedString(string: string, attributes: attributes)
-    }
-    
     func makeMenu() -> UIMenu {
-        
-        let copy = UIAction(title: "Copy",
-                            image: UIImage(systemName: "doc.on.doc"), handler: { _ in
-            self.copy()
-        })
-        
-        let resize = UIAction(title: "Resize Console",
-                              image: UIImage(systemName: "arrow.left.and.right.square"), handler: { _ in
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                ResizeController.shared.isActive.toggle()
-                ResizeController.shared.platterView.reveal()
-            }
-        })
-        
-        let clear = UIAction(title: "Clear Console",
-                             image: UIImage(systemName: "xmark.square"), handler: { _ in
-            self.clear()
-        })
-        
-        let consoleActions = UIMenu(title: "", options: .displayInline, children: [clear, resize])
-        
-        var frameSymbol = "rectangle.3.offgrid"
-        if #available(iOS 15, *) {
-            frameSymbol = "square.inset.filled"
-        }
-        
-        let viewFrames = UIAction(title: debugBordersEnabled ? "Hide View Frames" : "Show View Frames",
-                                  image: UIImage(systemName: frameSymbol), handler: { _ in
-            self.debugBordersEnabled.toggle()
-            self.menuButton.menu = self.makeMenu()
-        })
-        
-        let systemReport = UIAction(title: "System Report",
-                                    image: UIImage(systemName: "cpu"), handler: { _ in
-            self.systemReport()
-        })
-        
-        // Show the right glyph for the current device being used.
-        let deviceSymbol: String = {
-            
-            let hasHomeButton = UIScreen.main.value(forKey: "_displ" + "ayCorn" + "erRa" + "dius") as! CGFloat == 0
-            
-            if UIDevice.current.userInterfaceIdiom == .pad {
-                if hasHomeButton {
-                    return "ipad.homebutton"
-                } else {
-                    return "ipad"
-                }
-            } else if UIDevice.current.userInterfaceIdiom == .phone {
-                if hasHomeButton {
-                    return "iphone.homebutton"
-                } else {
-                    return "iphone"
-                }
-            } else {
-                return "rectangle"
-            }
-        }()
-        
-        let displayReport = UIAction(title: "Display Report",
-                                     image: UIImage(systemName: deviceSymbol), handler: { _ in
-            self.displayReport()
-        })
-        
-        let respring = UIAction(title: "Restart Spring" + "Board",
-                                image: UIImage(systemName: "apps.iphone"), handler: { _ in
-            
-            guard let window = UIApplication.shared.windows.first else { return }
-            
-            window.layer.cornerRadius = UIScreen.main.value(forKey: "_displ" + "ayCorn" + "erRa" + "dius") as! CGFloat
-            window.layer.masksToBounds = true
-            
-            UIViewPropertyAnimator(duration: 0.5, dampingRatio: 1) {
-                window.transform = .init(scaleX: 0.96, y: 0.96)
-                window.alpha = 0
-            }.startAnimation()
-            
-            // Concurrently run these snapshots to decrease the time to crash.
-            for _ in 0...1000 {
-                DispatchQueue.global(qos: .default).async {
-                    
-                    // This will cause jetsam to terminate SpringBoard.
-                    while true {
-                        window.snapshotView(afterScreenUpdates: false)
-                    }
-                }
-            }
-        })
-        
-        let debugActions = UIMenu(title: "", options: .displayInline,
-                                  children: [UIMenu(title: "Debug", image: UIImage(systemName: "ant"),
-                                                    children: [viewFrames, systemReport, displayReport, respring])])
-        
         var menuContent: [UIMenuElement] = []
-        
-        if consoleTextView.text != "" {
-            menuContent.append(contentsOf: [copy, consoleActions])
-        } else {
-            menuContent.append(resize)
+
+        if hideActionEnabled {
+            let hideAction = UIAction(title: "Hide",
+                                      image: UIImage(systemName: "xmark.square"), handler: { _ in
+                self.isVisible = false
+            })
+            menuContent.append(hideAction)
         }
-        menuContent.append(debugActions)
-        
+
+        if !actions.isEmpty {
+            let userActions = UIMenu(
+                title: "",
+                options: .displayInline,
+                children: actions)
+            menuContent.append(userActions)
+        }
+
         return UIMenu(title: "", children: menuContent)
+    }
+
+    public func resize() {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            self.resizeController.isActive.toggle()
+            self.resizeController.platterView.reveal()
+        }
     }
     
     @objc func longPressAction(recognizer: UILongPressGestureRecognizer) {
@@ -813,7 +681,7 @@ public class LCManager: NSObject, UIGestureRecognizerDelegate {
             
             UIViewPropertyAnimator(duration: 0.4, dampingRatio: 1) { [self] in
                 consoleView.transform = .init(scaleX: 1.04, y: 1.04)
-                consoleTextView.alpha = 0.5
+                bodyView.alpha = 0.5
                 menuButton.alpha = 0.5
             }.startAnimation()
         case .cancelled, .ended:
@@ -826,7 +694,7 @@ public class LCManager: NSObject, UIGestureRecognizerDelegate {
             
             UIViewPropertyAnimator(duration: 0.4, dampingRatio: 1) { [self] in
                 if !grabberMode {
-                    consoleTextView.alpha = 1
+                    bodyView.alpha = 1
                     menuButton.alpha = 1
                 }
             }.startAnimation()
@@ -857,7 +725,7 @@ public class LCManager: NSObject, UIGestureRecognizerDelegate {
                                              y: initialViewLocation.y + translation.y)
             }.startAnimation()
             
-            if consoleView.frame.maxX > 30 && consoleView.frame.minX < UIScreen.portraitSize.width - 30 {
+            if consoleView.frame.maxX > 30 && consoleView.frame.minX < windowSize.width - 30 {
                 grabberMode = false
             } else {
                 grabberMode = true
@@ -894,7 +762,7 @@ public class LCManager: NSObject, UIGestureRecognizerDelegate {
             UserDefaults.standard.set(nearestTargetPosition.y, forKey: "LocalConsole_Y")
             
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
-                self.grabberMode = nearestTargetPosition.x < 0 || nearestTargetPosition.x > UIScreen.portraitSize.width
+                self.grabberMode = nearestTargetPosition.x < 0 || nearestTargetPosition.x > self.windowSize.width
                 self.scrollLocked = !self.grabberMode
             }
             
@@ -919,8 +787,8 @@ public class LCManager: NSObject, UIGestureRecognizerDelegate {
         
         UIViewPropertyAnimator(duration: 0.4, dampingRatio: 1) { [self] in
             if !grabberMode {
-                consoleTextView.alpha = 1
-                if !ResizeController.shared.isActive {
+                bodyView.alpha = 1
+                if !self.resizeController.isActive {
                     menuButton.alpha = 1
                 }
             }
@@ -948,16 +816,27 @@ public class LCManager: NSObject, UIGestureRecognizerDelegate {
 
 // Custom window for the console to appear above other windows while passing touches down.
 class ConsoleWindow: UIWindow {
-    
     override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
-        
-        if let hitView = super.hitTest(point, with: event) {
-            return hitView.isKind(of: ConsoleWindow.self) ? nil : hitView
+        guard let hitView = super.hitTest(point, with: event) else {
+            return nil
         }
-        return super.hitTest(point, with: event)
+        if hitView.isKind(of: ConsoleView.self) {
+            return nil
+        }
+        else {
+            return hitView
+        }
     }
 }
 
+class ConsoleViewController: UIViewController {
+    override func loadView() {
+        view = ConsoleView()
+    }
+}
+
+class ConsoleView: UIView {
+}
 
 import UIKit.UIGestureRecognizerSubclass
 
@@ -973,24 +852,6 @@ public class UITapStartEndGestureRecognizer: UITapGestureRecognizer {
     }
 }
 
-// MARK: Fun hacks!
-extension UIView {
-    /// Swizzle UIView to use custom frame system when needed.
-    static func swizzleDebugBehaviour_UNTRACKABLE_TOGGLE() {
-        guard let originalMethod = class_getInstanceMethod(UIView.self, #selector(layoutSubviews)),
-              let swizzledMethod = class_getInstanceMethod(UIView.self, #selector(swizzled_layoutSubviews)) else { return }
-        method_exchangeImplementations(originalMethod, swizzledMethod)
-    }
-    
-    @objc func swizzled_layoutSubviews() {
-        swizzled_layoutSubviews()
-        
-        let tracker = BorderManager(view: self)
-        GLOBAL_BORDER_TRACKERS.append(tracker)
-        tracker.activate()
-    }
-}
-
 extension UIWindow {
     
     /// Make sure this window does not have control over the status bar appearance.
@@ -1002,7 +863,13 @@ extension UIWindow {
     }()
     
     @objc func swizzled_statusBarAppearance() -> Bool {
-        return isKeyWindow
+        if self.isKind(of: ConsoleWindow.self) {
+            return false
+        }
+        else {
+            // original implementation instead
+            return swizzled_statusBarAppearance()
+        }
     }
 }
 
@@ -1079,48 +946,6 @@ class LumaView: UIView {
     required init?(coder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
     }
-}
-
-class InvertedTextView: UITextView {
-    
-    var pendingOffsetChange = false
-    
-    // Thanks to WWDC21 Lab!
-    override func layoutSubviews() {
-        super.layoutSubviews()
-        
-        if panGestureRecognizer.numberOfTouches == 0 && pendingOffsetChange {
-            contentOffset.y = contentSize.height - bounds.size.height
-        } else {
-            pendingOffsetChange = false
-        }
-    }
-    
-    var cancelNextContentSizeDidSet = false
-    
-    override var contentSize: CGSize {
-        didSet {
-            cancelNextContentSizeDidSet = true
-            
-            if contentSize.height < bounds.size.height {
-                contentInset.top = bounds.size.height - contentSize.height
-            } else {
-                contentInset.top = 0
-            }
-        }
-    }
-}
-
-extension TimeInterval {
-    var formattedString: String? {
-        let formatter = DateComponentsFormatter()
-        formatter.allowedUnits = [.hour, .minute, .second]
-        return formatter.string(from: self)
-    }
-}
-
-fileprivate func _debugPrint(_ items: Any) {
-    print(items)
 }
 
 // MARK: Frame Rate Request
