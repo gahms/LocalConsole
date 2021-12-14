@@ -30,8 +30,8 @@ public class OverlayWindowManager: NSObject, UIGestureRecognizerDelegate {
     public var hideActionEnabled: Bool = true
     public var defaultWindowPos: DefaultWindowPos = .topLeft
     
-    var isConsoleConfigured = false
-    let defaultConsoleSize = CGSize(width: 240, height: 148)
+    var isConfigured = false
+    let defaultOverlaySize = CGSize(width: 240, height: 148)
     
     lazy var borderView = UIView()
     
@@ -45,20 +45,20 @@ public class OverlayWindowManager: NSObject, UIGestureRecognizerDelegate {
     lazy var lumaView: LumaView = {
         let lumaView = LumaView()
         lumaView.foregroundView.backgroundColor = .black
-        lumaView.layer.cornerRadius = consoleView.layer.cornerRadius
+        lumaView.layer.cornerRadius = contentView.layer.cornerRadius
         
-        consoleView.addSubview(lumaView)
+        contentView.addSubview(lumaView)
         
         lumaView.translatesAutoresizingMaskIntoConstraints = false
         
-        lumaWidthAnchor = lumaView.widthAnchor.constraint(equalTo: consoleView.widthAnchor)
-        lumaHeightAnchor = lumaView.heightAnchor.constraint(equalToConstant: consoleView.frame.size.height)
+        lumaWidthAnchor = lumaView.widthAnchor.constraint(equalTo: contentView.widthAnchor)
+        lumaHeightAnchor = lumaView.heightAnchor.constraint(equalToConstant: contentView.frame.size.height)
         
         NSLayoutConstraint.activate([
             lumaWidthAnchor,
             lumaHeightAnchor,
-            lumaView.centerXAnchor.constraint(equalTo: consoleView.centerXAnchor),
-            lumaView.centerYAnchor.constraint(equalTo: consoleView.centerYAnchor)
+            lumaView.centerXAnchor.constraint(equalTo: contentView.centerXAnchor),
+            lumaView.centerYAnchor.constraint(equalTo: contentView.centerYAnchor)
         ])
         
         return lumaView
@@ -69,23 +69,23 @@ public class OverlayWindowManager: NSObject, UIGestureRecognizerDelegate {
         
         button.addAction(UIAction(handler: { [self] _ in
             UIViewPropertyAnimator(duration: 0.5, dampingRatio: 1) {
-                consoleView.center = nearestTargetTo(consoleView.center, possibleTargets: possibleEndpoints.dropLast())
+                contentView.center = nearestTargetTo(contentView.center, possibleTargets: possibleEndpoints.dropLast())
             }.startAnimation()
             grabberMode = false
             
-            UserDefaults.standard.set(consoleView.center.x, forKey: "OverlayWindow_X")
-            UserDefaults.standard.set(consoleView.center.y, forKey: "OverlayWindow_Y")
+            UserDefaults.standard.set(contentView.center.x, forKey: "OverlayWindow_X")
+            UserDefaults.standard.set(contentView.center.y, forKey: "OverlayWindow_Y")
         }), for: .touchUpInside)
         
-        consoleView.addSubview(button)
+        contentView.addSubview(button)
         
         button.translatesAutoresizingMaskIntoConstraints = false
         
         NSLayoutConstraint.activate([
-            button.widthAnchor.constraint(equalTo: consoleView.widthAnchor),
-            button.heightAnchor.constraint(equalTo: consoleView.heightAnchor),
-            button.centerXAnchor.constraint(equalTo: consoleView.centerXAnchor),
-            button.centerYAnchor.constraint(equalTo: consoleView.centerYAnchor)
+            button.widthAnchor.constraint(equalTo: contentView.widthAnchor),
+            button.heightAnchor.constraint(equalTo: contentView.heightAnchor),
+            button.centerXAnchor.constraint(equalTo: contentView.centerXAnchor),
+            button.centerYAnchor.constraint(equalTo: contentView.centerYAnchor)
         ])
         
         button.isHidden = true
@@ -93,51 +93,51 @@ public class OverlayWindowManager: NSObject, UIGestureRecognizerDelegate {
         return button
     }()
     
-    /// The fixed size of the console view.
-    lazy var consoleSize = defaultConsoleSize {
+    /// The fixed size of the overlay view.
+    lazy var overlaySize = defaultOverlaySize {
         didSet {
-            consoleView.frame.size = consoleSize
+            contentView.frame.size = overlaySize
             
             // Update text view width.
-            if consoleView.frame.size.width > resizeController.kMaxConsoleWidth {
-                bodyView.frame.size.width = resizeController.kMaxConsoleWidth - 2
-            } else if consoleView.frame.size.width < resizeController.kMinConsoleWidth {
-                bodyView.frame.size.width = resizeController.kMinConsoleWidth - 2
+            if contentView.frame.size.width > resizeController.kMaxOverlayWidth {
+                bodyView.frame.size.width = resizeController.kMaxOverlayWidth - 2
+            } else if contentView.frame.size.width < resizeController.kMinOverlayWidth {
+                bodyView.frame.size.width = resizeController.kMinOverlayWidth - 2
             } else {
-                bodyView.frame.size.width = consoleSize.width - 2
+                bodyView.frame.size.width = overlaySize.width - 2
             }
             
             // Update text view height.
-            if consoleView.frame.size.height > ResizeController.kMaxConsoleHeight {
-                bodyView.frame.size.height = ResizeController.kMaxConsoleHeight - 2
-                + (consoleView.frame.size.height - ResizeController.kMaxConsoleHeight) * 2 / 3
-            } else if consoleView.frame.size.height < ResizeController.kMinConsoleHeight {
-                bodyView.frame.size.height = ResizeController.kMinConsoleHeight - 2
-                + (consoleView.frame.size.height - ResizeController.kMinConsoleHeight) * 2 / 3
+            if contentView.frame.size.height > ResizeController.kMaxOverlayHeight {
+                bodyView.frame.size.height = ResizeController.kMaxOverlayHeight - 2
+                + (contentView.frame.size.height - ResizeController.kMaxOverlayHeight) * 2 / 3
+            } else if contentView.frame.size.height < ResizeController.kMinOverlayHeight {
+                bodyView.frame.size.height = ResizeController.kMinOverlayHeight - 2
+                + (contentView.frame.size.height - ResizeController.kMinOverlayHeight) * 2 / 3
             } else {
-                bodyView.frame.size.height = consoleSize.height - 2
+                bodyView.frame.size.height = overlaySize.height - 2
             }
             
             bodyView.contentOffset.y = bodyView.contentSize.height - bodyView.bounds.size.height
             
             // TODO: Snap to nearest position.
             
-            UserDefaults.standard.set(consoleSize.width, forKey: "OverlayWindow_Width")
-            UserDefaults.standard.set(consoleSize.height, forKey: "OverlayWindow_Height")
+            UserDefaults.standard.set(overlaySize.width, forKey: "OverlayWindow_Width")
+            UserDefaults.standard.set(overlaySize.height, forKey: "OverlayWindow_Height")
         }
     }
     
     /// Strong reference keeps the window alive.
-    var consoleWindow: ConsoleWindow?
-    var contentView: UIView {
-        consoleViewController.view!
+    var overlayWindow: OverlayWindow?
+    var overlayView: UIView {
+        overlayViewController.view!
     }
     
-    // The console needs a parent view controller in order to display context menus.
-    lazy var consoleViewController = ConsoleViewController()
-    lazy var consoleView: UIView = {
+    // We need a parent view controller in order to display context menus.
+    lazy var overlayViewController = OverlayViewController()
+    lazy var contentView: UIView = {
         let v = UIView()
-        consoleViewController.view!.addSubview(v)
+        overlayViewController.view!.addSubview(v)
         return v
     }()
     
@@ -147,42 +147,49 @@ public class OverlayWindowManager: NSObject, UIGestureRecognizerDelegate {
     var userBodyViewFixHeight: Bool = false
     var userBodyViewFixWidth: Bool = true
 
+
+    /*
+     overlayWindow -> overlayViewController
+     -> overlayView -> contentView -> bodyView
+     */
+
+
     /// Button that reveals menu.
     lazy var menuButton = UIButton()
     
-    /// Tracks whether the PiP console is in text view scroll mode or pan mode.
+    /// Tracks whether the PiP overlay is in scroll mode or pan mode.
     var scrollLocked = true
     
     /// Feedback generator for the long press action.
     lazy var feedbackGenerator = UISelectionFeedbackGenerator()
     
-    lazy var panRecognizer = UIPanGestureRecognizer(target: self, action: #selector(consolePiPPanner(recognizer:)))
+    lazy var panRecognizer = UIPanGestureRecognizer(target: self, action: #selector(overlayPiPPanner(recognizer:)))
     lazy var longPressRecognizer = UILongPressGestureRecognizer(target: self, action: #selector(longPressAction(recognizer:)))
 
     var windowSize: CGSize {
-        consoleWindow?.frame.size ?? UIScreen.size
+        overlayWindow?.frame.size ?? UIScreen.size
     }
 
     var allEndpoints: [CGPoint] {
-        if consoleSize.width < windowSize.width - 112 {
+        if overlaySize.width < windowSize.width - 112 {
             // Four endpoints, one for each corner.
             return [
                 // Top endpoints.
-                CGPoint(x: consoleSize.width / 2 + 12,
+                CGPoint(x: overlaySize.width / 2 + 12,
                         y: (UIScreen.hasRoundedCorners ? 38 : 16)
-                        + consoleSize.height / 2 + 12),
-                CGPoint(x: windowSize.width - consoleSize.width / 2 - 12,
+                        + overlaySize.height / 2 + 12),
+                CGPoint(x: windowSize.width - overlaySize.width / 2 - 12,
                         y: (UIScreen.hasRoundedCorners ? 38 : 16)
-                        + consoleSize.height / 2 + 12),
+                        + overlaySize.height / 2 + 12),
 
                 // Bottom endpoints.
-                CGPoint(x: consoleSize.width / 2 + 12,
-                        y: windowSize.height - consoleSize.height / 2
-                        - (keyboardHeight ?? consoleWindow?.safeAreaInsets.bottom ?? 0)
+                CGPoint(x: overlaySize.width / 2 + 12,
+                        y: windowSize.height - overlaySize.height / 2
+                        - (keyboardHeight ?? overlayWindow?.safeAreaInsets.bottom ?? 0)
                         - 12),
-                CGPoint(x: windowSize.width - consoleSize.width / 2 - 12,
-                        y: windowSize.height - consoleSize.height / 2
-                        - (keyboardHeight ?? consoleWindow?.safeAreaInsets.bottom ?? 0)
+                CGPoint(x: windowSize.width - overlaySize.width / 2 - 12,
+                        y: windowSize.height - overlaySize.height / 2
+                        - (keyboardHeight ?? overlayWindow?.safeAreaInsets.bottom ?? 0)
                         - 12)
             ]
         }
@@ -191,10 +198,10 @@ public class OverlayWindowManager: NSObject, UIGestureRecognizerDelegate {
             return [
                 CGPoint(x: windowSize.width / 2,
                         y: (UIScreen.hasRoundedCorners ? 38 : 16)
-                        + consoleSize.height / 2 + 12),
+                        + overlaySize.height / 2 + 12),
                 CGPoint(x: windowSize.width / 2,
-                        y: windowSize.height - consoleSize.height / 2
-                        - (keyboardHeight ?? consoleWindow?.safeAreaInsets.bottom ?? 0)
+                        y: windowSize.height - overlaySize.height / 2
+                        - (keyboardHeight ?? overlayWindow?.safeAreaInsets.bottom ?? 0)
                         - 12)
             ]
         }
@@ -203,31 +210,31 @@ public class OverlayWindowManager: NSObject, UIGestureRecognizerDelegate {
     /// Gesture endpoints. Each point represents a corner of the screen. TODO: Handle screen rotation.
     var possibleEndpoints: [CGPoint] {
         var endpoints = allEndpoints
-        if consoleSize.width < windowSize.width - 112 {
-            if consoleView.frame.minX <= 0 {
+        if overlaySize.width < windowSize.width - 112 {
+            if contentView.frame.minX <= 0 {
                 // Left edge endpoints.
                 endpoints = [endpoints[0], endpoints[2]]
                 
                 // Left edge hiding endpoints.
-                if consoleView.center.y < (windowSize.height - (temporaryKeyboardHeightValueTracker ?? 0)) / 2 {
-                    endpoints.append(CGPoint(x: -consoleSize.width / 2 + 28,
+                if contentView.center.y < (windowSize.height - (temporaryKeyboardHeightValueTracker ?? 0)) / 2 {
+                    endpoints.append(CGPoint(x: -overlaySize.width / 2 + 28,
                                              y: endpoints[0].y))
                 } else {
-                    endpoints.append(CGPoint(x: -consoleSize.width / 2 + 28,
+                    endpoints.append(CGPoint(x: -overlaySize.width / 2 + 28,
                                              y: endpoints[1].y))
                 }
-            } else if consoleView.frame.maxX >= windowSize.width {
+            } else if contentView.frame.maxX >= windowSize.width {
                 // Right edge endpoints.
                 endpoints = [endpoints[1], endpoints[3]]
                 
                 // Right edge hiding endpoints.
-                if consoleView.center.y < (windowSize.height - (temporaryKeyboardHeightValueTracker ?? 0)) / 2 {
+                if contentView.center.y < (windowSize.height - (temporaryKeyboardHeightValueTracker ?? 0)) / 2 {
                     endpoints.append(CGPoint(x: windowSize.width
-                                             + consoleSize.width / 2 - 28,
+                                             + overlaySize.width / 2 - 28,
                                              y: endpoints[0].y))
                 } else {
                     endpoints.append(CGPoint(x: windowSize.width
-                                             + consoleSize.width / 2 - 28,
+                                             + overlaySize.width / 2 - 28,
                                              y: endpoints[1].y))
                 }
             }
@@ -235,23 +242,23 @@ public class OverlayWindowManager: NSObject, UIGestureRecognizerDelegate {
             return endpoints
             
         } else {
-            if consoleView.frame.minX <= 0 {
+            if contentView.frame.minX <= 0 {
                 // Left edge hiding endpoints.
-                if consoleView.center.y < (windowSize.height - (temporaryKeyboardHeightValueTracker ?? 0)) / 2 {
-                    endpoints.append(CGPoint(x: -consoleSize.width / 2 + 28,
+                if contentView.center.y < (windowSize.height - (temporaryKeyboardHeightValueTracker ?? 0)) / 2 {
+                    endpoints.append(CGPoint(x: -overlaySize.width / 2 + 28,
                                              y: endpoints[0].y))
                 } else {
-                    endpoints.append(CGPoint(x: -consoleSize.width / 2 + 28,
+                    endpoints.append(CGPoint(x: -overlaySize.width / 2 + 28,
                                              y: endpoints[1].y))
                 }
-            } else if consoleView.frame.maxX >= windowSize.width {
+            } else if contentView.frame.maxX >= windowSize.width {
                 
                 // Right edge hiding endpoints.
-                if consoleView.center.y < (windowSize.height - (temporaryKeyboardHeightValueTracker ?? 0)) / 2 {
-                    endpoints.append(CGPoint(x: windowSize.width + consoleSize.width / 2 - 28,
+                if contentView.center.y < (windowSize.height - (temporaryKeyboardHeightValueTracker ?? 0)) / 2 {
+                    endpoints.append(CGPoint(x: windowSize.width + overlaySize.width / 2 - 28,
                                              y: endpoints[0].y))
                 } else {
-                    endpoints.append(CGPoint(x: windowSize.width + consoleSize.width / 2 - 28,
+                    endpoints.append(CGPoint(x: windowSize.width + overlaySize.width / 2 - 28,
                                              y: endpoints[1].y))
                 }
             }
@@ -262,67 +269,67 @@ public class OverlayWindowManager: NSObject, UIGestureRecognizerDelegate {
     
     lazy var initialViewLocation: CGPoint = .zero
     
-    func configureConsole() {
-        consoleSize = CGSize(width: UserDefaults.standard.object(forKey: "OverlayWindow_Width") as? CGFloat ?? consoleSize.width,
-                             height: UserDefaults.standard.object(forKey: "OverlayWindow_Height") as? CGFloat ?? consoleSize.height)
+    func configureOverlay() {
+        overlaySize = CGSize(width: UserDefaults.standard.object(forKey: "OverlayWindow_Width") as? CGFloat ?? overlaySize.width,
+                             height: UserDefaults.standard.object(forKey: "OverlayWindow_Height") as? CGFloat ?? overlaySize.height)
         
         
-        consoleView.layer.shadowRadius = 16
-        consoleView.layer.shadowOpacity = 0.5
-        consoleView.layer.shadowOffset = CGSize(width: 0, height: 2)
-        consoleView.alpha = 0
+        contentView.layer.shadowRadius = 16
+        contentView.layer.shadowOpacity = 0.5
+        contentView.layer.shadowOffset = CGSize(width: 0, height: 2)
+        contentView.alpha = 0
         
-        consoleView.layer.cornerRadius = 24
-        consoleView.layer.cornerCurve = .continuous
+        contentView.layer.cornerRadius = 24
+        contentView.layer.cornerCurve = .continuous
         
         let _ = lumaView
         
         borderView.frame = CGRect(x: -1, y: -1,
-                                  width: consoleSize.width + 2,
-                                  height: consoleSize.height + 2)
+                                  width: overlaySize.width + 2,
+                                  height: overlaySize.height + 2)
         borderView.layer.borderWidth = 1
         borderView.layer.borderColor = UIColor(white: 1, alpha: 0.08).cgColor
-        borderView.layer.cornerRadius = consoleView.layer.cornerRadius + 1
+        borderView.layer.cornerRadius = contentView.layer.cornerRadius + 1
         borderView.layer.cornerCurve = .continuous
         borderView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
-        consoleView.addSubview(borderView)
+        contentView.addSubview(borderView)
         
         // Configure text view.
-        bodyView.frame = CGRect(x: 1, y: 1, width: consoleSize.width - 2, height: consoleSize.height - 2)
+        bodyView.frame = CGRect(x: 1, y: 1, width: overlaySize.width - 2, height: overlaySize.height - 2)
         bodyView.backgroundColor = .clear
         bodyView.showsVerticalScrollIndicator = false
         bodyView.contentInsetAdjustmentBehavior = .never
-        consoleView.addSubview(bodyView)
+        contentView.addSubview(bodyView)
         
-        bodyView.layer.cornerRadius = consoleView.layer.cornerRadius - 2
+        bodyView.layer.cornerRadius = contentView.layer.cornerRadius - 2
         bodyView.layer.cornerCurve = .continuous
         
         // Configure gesture recognizers.
         panRecognizer.maximumNumberOfTouches = 1
         panRecognizer.delegate = self
         
-        let tapRecognizer = UITapStartEndGestureRecognizer(target: self, action: #selector(consolePiPTapStartEnd(recognizer:)))
+        let tapRecognizer = UITapStartEndGestureRecognizer(target: self, action: #selector(overlayPiPTapStartEnd(recognizer:)))
         tapRecognizer.delegate = self
         
         longPressRecognizer.minimumPressDuration = 0.1
         
-        consoleView.addGestureRecognizer(panRecognizer)
-        consoleView.addGestureRecognizer(tapRecognizer)
-        consoleView.addGestureRecognizer(longPressRecognizer)
+        contentView.addGestureRecognizer(panRecognizer)
+        contentView.addGestureRecognizer(tapRecognizer)
+        contentView.addGestureRecognizer(longPressRecognizer)
         
         // Prepare menu button.
         let diameter = CGFloat(30)
         
         // This tuned button frame is used to adjust where the menu appears.
-        menuButton = UIButton(frame: CGRect(x: consoleView.bounds.width - 44,
-                                            y: consoleView.bounds.height - 36,
+        menuButton = UIButton(frame: CGRect(x: contentView.bounds.width - 44,
+                                            y: contentView.bounds.height - 36,
                                             width: 44,
                                             height: 36 + 4 /*Offests the context menu by the desired amount*/))
         menuButton.autoresizingMask = [.flexibleLeftMargin, .flexibleTopMargin]
         
         let circleFrame = CGRect(
-            x: menuButton.bounds.width - diameter - (consoleView.layer.cornerRadius - diameter / 2),
-            y: menuButton.bounds.height - diameter - (consoleView.layer.cornerRadius - diameter / 2) - 4,
+            x: menuButton.bounds.width - diameter - (contentView.layer.cornerRadius - diameter / 2),
+            y: menuButton.bounds.height - diameter - (contentView.layer.cornerRadius - diameter / 2) - 4,
             width: diameter, height: diameter)
         
         let circle = UIView(frame: circleFrame)
@@ -340,7 +347,7 @@ public class OverlayWindowManager: NSObject, UIGestureRecognizerDelegate {
         menuButton.tintColor = UIColor(white: 1, alpha: 0.75)
         menuButton.menu = makeMenu()
         menuButton.showsMenuAsPrimaryAction = true
-        consoleView.addSubview(menuButton)
+        contentView.addSubview(menuButton)
         if menuButton.menu?.children.isEmpty ?? false {
             menuButton.isHidden = true
         }
@@ -355,22 +362,22 @@ public class OverlayWindowManager: NSObject, UIGestureRecognizerDelegate {
     func configureWindow() {
         var windowSceneFound = false
         
-        // Update console cached based on last-cached origin.
-        func updateConsoleOrigin() {
+        // Update cache based on last-cached origin.
+        func updateOverlayOrigin() {
             snapToCachedEndpoint()
             
-            if consoleView.center.x < 0 || consoleView.center.x > windowSize.width {
+            if contentView.center.x < 0 || contentView.center.x > windowSize.width {
                 grabberMode = true
                 scrollLocked = !grabberMode
                 
-                consoleView.layer.removeAllAnimations()
+                contentView.layer.removeAllAnimations()
                 lumaView.layer.removeAllAnimations()
                 menuButton.layer.removeAllAnimations()
                 bodyView.layer.removeAllAnimations()
             }
         }
         
-        // Configure console window.
+        // Configure window.
         func fetchWindowScene() {
             let windowScene = UIApplication.shared
                 .connectedScenes
@@ -381,16 +388,16 @@ public class OverlayWindowManager: NSObject, UIGestureRecognizerDelegate {
                 windowSceneFound = true
 
                 UIWindow.swizzleStatusBarAppearanceOverride
-                let window = ConsoleWindow(windowScene: windowScene)
+                let window = OverlayWindow(windowScene: windowScene)
                 window.frame = UIScreen.main.bounds
                 //let level = UIWindow.Level(UIWindow.Level.statusBar.rawValue + 1)
                 let level = UIWindow.Level.statusBar
                 window.windowLevel = level
-                window.rootViewController = consoleViewController
+                window.rootViewController = overlayViewController
                 window.isHidden = false
-                consoleWindow = window
+                overlayWindow = window
 
-                updateConsoleOrigin()
+                updateOverlayOrigin()
             }
         }
         
@@ -407,7 +414,7 @@ public class OverlayWindowManager: NSObject, UIGestureRecognizerDelegate {
                 
                 if isVisible {
                     isVisible = false
-                    consoleView.layer.removeAllAnimations()
+                    contentView.layer.removeAllAnimations()
                     isVisible = true
                 }
             }
@@ -438,15 +445,15 @@ public class OverlayWindowManager: NSObject, UIGestureRecognizerDelegate {
             }
         }
 
-        let cachedConsolePosition = CGPoint(
+        let cachedOverlayPosition = CGPoint(
             x: UserDefaults.standard.object(forKey: "OverlayWindow_X") as? CGFloat
             ?? allEndpoints[defaultPosIndex].x,
             y: UserDefaults.standard.object(forKey: "OverlayWindow_Y") as? CGFloat
             ?? allEndpoints[defaultPosIndex].y)
 
-        // Update console center so possibleEndpoints are calculated correctly.
-        consoleView.center = cachedConsolePosition
-        consoleView.center = nearestTargetTo(cachedConsolePosition,
+        // Update overlay center so possibleEndpoints are calculated correctly.
+        contentView.center = cachedOverlayPosition
+        contentView.center = nearestTargetTo(cachedOverlayPosition,
                                              possibleTargets: possibleEndpoints)
     }
     
@@ -506,11 +513,11 @@ public class OverlayWindowManager: NSObject, UIGestureRecognizerDelegate {
             guard oldValue != isVisible else { return }
             
             if isVisible {
-                if !isConsoleConfigured {
+                if !isConfigured {
                     DispatchQueue.main.async { [self] in
                         configureWindow()
-                        configureConsole()
-                        isConsoleConfigured = true
+                        configureOverlay()
+                        isConfigured = true
                     }
                 }
                 if userBodyDidChange {
@@ -519,28 +526,28 @@ public class OverlayWindowManager: NSObject, UIGestureRecognizerDelegate {
                     }
                 }
                 
-                consoleView.transform = .init(scaleX: 0.9, y: 0.9)
+                contentView.transform = .init(scaleX: 0.9, y: 0.9)
                 UIViewPropertyAnimator(duration: 0.5, dampingRatio: 0.6) { [self] in
-                    consoleView.transform = .init(scaleX: 1, y: 1)
+                    contentView.transform = .init(scaleX: 1, y: 1)
                 }.startAnimation()
                 UIViewPropertyAnimator(duration: 0.4, dampingRatio: 1) { [self] in
-                    consoleView.alpha = 1
+                    contentView.alpha = 1
                 }.startAnimation()
                 
                 let animation = CABasicAnimation(keyPath: "shadowOpacity")
                 animation.fromValue = 0
                 animation.toValue = 0.5
                 animation.duration = 0.6
-                consoleView.layer.add(animation, forKey: animation.keyPath)
-                consoleView.layer.shadowOpacity = 0.5
+                contentView.layer.add(animation, forKey: animation.keyPath)
+                contentView.layer.shadowOpacity = 0.5
                 
             } else {
                 UIViewPropertyAnimator(duration: 0.4, dampingRatio: 1) { [self] in
-                    consoleView.transform = .init(scaleX: 0.9, y: 0.9)
+                    contentView.transform = .init(scaleX: 0.9, y: 0.9)
                 }.startAnimation()
                 
                 UIViewPropertyAnimator(duration: 0.3, dampingRatio: 1) { [self] in
-                    consoleView.alpha = 0
+                    contentView.alpha = 0
                 }.startAnimation()
             }
         }
@@ -552,9 +559,9 @@ public class OverlayWindowManager: NSObject, UIGestureRecognizerDelegate {
             
             if grabberMode {
                 
-                lumaView.layer.cornerRadius = consoleView.layer.cornerRadius
-                lumaHeightAnchor.constant = consoleView.frame.size.height
-                consoleView.layoutIfNeeded()
+                lumaView.layer.cornerRadius = contentView.layer.cornerRadius
+                lumaHeightAnchor.constant = contentView.frame.size.height
+                contentView.layoutIfNeeded()
                 
                 UIViewPropertyAnimator(duration: 0.3, dampingRatio: 1) { [self] in
                     bodyView.alpha = 0
@@ -570,7 +577,7 @@ public class OverlayWindowManager: NSObject, UIGestureRecognizerDelegate {
                 lumaHeightAnchor.constant = 96
                 UIViewPropertyAnimator(duration: 0.4, dampingRatio: 1) { [self] in
                     lumaView.layer.cornerRadius = 8
-                    consoleView.layoutIfNeeded()
+                    contentView.layoutIfNeeded()
                 }.startAnimation(afterDelay: 0.06)
                 
                 bodyView.isUserInteractionEnabled = false
@@ -578,11 +585,11 @@ public class OverlayWindowManager: NSObject, UIGestureRecognizerDelegate {
                 
             } else {
                 
-                lumaHeightAnchor.constant = consoleView.frame.size.height
+                lumaHeightAnchor.constant = contentView.frame.size.height
                 lumaWidthAnchor.constant = 0
                 UIViewPropertyAnimator(duration: 0.4, dampingRatio: 1) { [self] in
-                    consoleView.layoutIfNeeded()
-                    lumaView.layer.cornerRadius = consoleView.layer.cornerRadius
+                    contentView.layoutIfNeeded()
+                    lumaView.layer.cornerRadius = contentView.layer.cornerRadius
                 }.startAnimation()
                 
                 UIViewPropertyAnimator(duration: 0.3, dampingRatio: 1) { [self] in
@@ -611,13 +618,13 @@ public class OverlayWindowManager: NSObject, UIGestureRecognizerDelegate {
             
             temporaryKeyboardHeightValueTracker = oldValue
             
-            if consoleView.center != possibleEndpoints[0] && consoleView.center != possibleEndpoints[1] {
-                let nearestTargetPosition = nearestTargetTo(consoleView.center, possibleTargets: possibleEndpoints.suffix(2))
+            if contentView.center != possibleEndpoints[0] && contentView.center != possibleEndpoints[1] {
+                let nearestTargetPosition = nearestTargetTo(contentView.center, possibleTargets: possibleEndpoints.suffix(2))
                 
                 Swift.print(possibleEndpoints.suffix(2))
                 
                 UIViewPropertyAnimator(duration: 0.55, dampingRatio: 1) {
-                    self.consoleView.center = nearestTargetPosition
+                    self.contentView.center = nearestTargetPosition
                 }.startAnimation()
             }
             
@@ -680,7 +687,7 @@ public class OverlayWindowManager: NSObject, UIGestureRecognizerDelegate {
             scrollLocked = false
             
             UIViewPropertyAnimator(duration: 0.4, dampingRatio: 1) { [self] in
-                consoleView.transform = .init(scaleX: 1.04, y: 1.04)
+                contentView.transform = .init(scaleX: 1.04, y: 1.04)
                 bodyView.alpha = 0.5
                 menuButton.alpha = 0.5
             }.startAnimation()
@@ -689,7 +696,7 @@ public class OverlayWindowManager: NSObject, UIGestureRecognizerDelegate {
             if !grabberMode { scrollLocked = true }
             
             UIViewPropertyAnimator(duration: 0.8, dampingRatio: 0.5) { [self] in
-                consoleView.transform = .identity
+                contentView.transform = .identity
             }.startAnimation()
             
             UIViewPropertyAnimator(duration: 0.4, dampingRatio: 1) { [self] in
@@ -702,30 +709,30 @@ public class OverlayWindowManager: NSObject, UIGestureRecognizerDelegate {
         }
     }
     
-    let consolePiPPanner_frameRateRequest = FrameRateRequest()
+    let overlayPiPPanner_frameRateRequest = FrameRateRequest()
     
-    @objc func consolePiPPanner(recognizer: UIPanGestureRecognizer) {
+    @objc func overlayPiPPanner(recognizer: UIPanGestureRecognizer) {
         
         if recognizer.state == .began {
-            consolePiPPanner_frameRateRequest.isActive = true
+            overlayPiPPanner_frameRateRequest.isActive = true
             
-            initialViewLocation = consoleView.center
+            initialViewLocation = contentView.center
         }
         
         guard !scrollLocked else { return }
         
-        let translation = recognizer.translation(in: consoleView.superview)
-        let velocity = recognizer.velocity(in: consoleView.superview)
+        let translation = recognizer.translation(in: contentView.superview)
+        let velocity = recognizer.velocity(in: contentView.superview)
         
         switch recognizer.state {
         case .changed:
             
             UIViewPropertyAnimator(duration: 0.175, dampingRatio: 1) { [self] in
-                consoleView.center = CGPoint(x: initialViewLocation.x + translation.x,
+                contentView.center = CGPoint(x: initialViewLocation.x + translation.x,
                                              y: initialViewLocation.y + translation.y)
             }.startAnimation()
             
-            if consoleView.frame.maxX > 30 && consoleView.frame.minX < windowSize.width - 30 {
+            if contentView.frame.maxX > 30 && contentView.frame.minX < windowSize.width - 30 {
                 grabberMode = false
             } else {
                 grabberMode = true
@@ -733,28 +740,28 @@ public class OverlayWindowManager: NSObject, UIGestureRecognizerDelegate {
             
         case .ended, .cancelled:
             
-            consolePiPPanner_frameRateRequest.isActive = false
+            overlayPiPPanner_frameRateRequest.isActive = false
             FrameRateRequest().perform(duration: 0.5)
             
             // After the PiP is thrown, determine the best corner and re-target it there.
             let decelerationRate = UIScrollView.DecelerationRate.normal.rawValue
             
             let projectedPosition = CGPoint(
-                x: consoleView.center.x + project(initialVelocity: velocity.x, decelerationRate: decelerationRate),
-                y: consoleView.center.y + project(initialVelocity: velocity.y, decelerationRate: decelerationRate)
+                x: contentView.center.x + project(initialVelocity: velocity.x, decelerationRate: decelerationRate),
+                y: contentView.center.y + project(initialVelocity: velocity.y, decelerationRate: decelerationRate)
             )
             
             let nearestTargetPosition = nearestTargetTo(projectedPosition, possibleTargets: possibleEndpoints)
             
             let relativeInitialVelocity = CGVector(
-                dx: relativeVelocity(forVelocity: velocity.x, from: consoleView.center.x, to: nearestTargetPosition.x),
-                dy: relativeVelocity(forVelocity: velocity.y, from: consoleView.center.y, to: nearestTargetPosition.y)
+                dx: relativeVelocity(forVelocity: velocity.x, from: contentView.center.x, to: nearestTargetPosition.x),
+                dy: relativeVelocity(forVelocity: velocity.y, from: contentView.center.y, to: nearestTargetPosition.y)
             )
             
             let timingParameters = UISpringTimingParameters(damping: 0.85, response: 0.45, initialVelocity: relativeInitialVelocity)
             let positionAnimator = UIViewPropertyAnimator(duration: 0, timingParameters: timingParameters)
             positionAnimator.addAnimations { [self] in
-                consoleView.center = nearestTargetPosition
+                contentView.center = nearestTargetPosition
             }
             positionAnimator.startAnimation()
             
@@ -771,18 +778,18 @@ public class OverlayWindowManager: NSObject, UIGestureRecognizerDelegate {
     }
     
     // Animate touch down.
-    func consolePiPTouchDown() {
+    func overlayPiPTouchDown() {
         guard !grabberMode else { return }
         
         UIViewPropertyAnimator(duration: 1.25, dampingRatio: 0.5) { [self] in
-            consoleView.transform = .init(scaleX: 0.95, y: 0.95)
+            contentView.transform = .init(scaleX: 0.95, y: 0.95)
         }.startAnimation()
     }
     
     // Animate touch up.
-    func consolePiPTouchUp() {
+    func overlayPiPTouchUp() {
         UIViewPropertyAnimator(duration: 0.8, dampingRatio: 0.4) { [self] in
-            consoleView.transform = .init(scaleX: 1, y: 1)
+            contentView.transform = .init(scaleX: 1, y: 1)
         }.startAnimation()
         
         UIViewPropertyAnimator(duration: 0.4, dampingRatio: 1) { [self] in
@@ -800,27 +807,27 @@ public class OverlayWindowManager: NSObject, UIGestureRecognizerDelegate {
         return true
     }
     
-    @objc func consolePiPTapStartEnd(recognizer: UITapStartEndGestureRecognizer) {
+    @objc func overlayPiPTapStartEnd(recognizer: UITapStartEndGestureRecognizer) {
         switch recognizer.state {
         case .began:
-            consolePiPTouchDown()
+            overlayPiPTouchDown()
         case .changed:
             break
         case .ended, .cancelled, .possible, .failed:
-            consolePiPTouchUp()
+            overlayPiPTouchUp()
         @unknown default:
             break
         }
     }
 }
 
-// Custom window for the console to appear above other windows while passing touches down.
-class ConsoleWindow: UIWindow {
+// Custom window for the overlay to appear above other windows while passing touches down.
+class OverlayWindow: UIWindow {
     override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
         guard let hitView = super.hitTest(point, with: event) else {
             return nil
         }
-        if hitView.isKind(of: ConsoleView.self) {
+        if hitView.isKind(of: OverlayView.self) {
             return nil
         }
         else {
@@ -829,13 +836,13 @@ class ConsoleWindow: UIWindow {
     }
 }
 
-class ConsoleViewController: UIViewController {
+class OverlayViewController: UIViewController {
     override func loadView() {
-        view = ConsoleView()
+        view = OverlayView()
     }
 }
 
-class ConsoleView: UIView {
+class OverlayView: UIView {
 }
 
 import UIKit.UIGestureRecognizerSubclass
@@ -863,7 +870,7 @@ extension UIWindow {
     }()
     
     @objc func swizzled_statusBarAppearance() -> Bool {
-        if self.isKind(of: ConsoleWindow.self) {
+        if self.isKind(of: OverlayWindow.self) {
             return false
         }
         else {
