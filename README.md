@@ -1,48 +1,55 @@
-# **LocalConsole**
+# **OverlayWindow**
 
-Welcome to LocalConsole! This Swift Package makes on-device debugging easy with a convenient PiP-style console that can display items in the same way ```print()``` will in Xcode. This tool can also dynamically display view frames and restart SpringBoard right from your live app.
+This Swift Package makes PiP-style window that can display any UIView.
 
-<div>
-  <img src="https://github.com/duraidabdul/Demos/blob/main/Demo_Pan.gif?raw=true" width="320">
-  <img src="https://github.com/duraidabdul/Demos/blob/main/Demo_Resize.gif?raw=true" width="320">
-</div>
+This package was created as a fork of https://github.com/duraidabdul/LocalConsole.
+
+I have removed a lot from LocalConsole and added support for landscape device 
+orientation.
+
+I have added a way to supply your own UIView for the content of the window.
+
+I have added a way to supply your own `UIAction`s as menu items.
 
 ## **Setup**
 
 1. In your Xcode project, navigate to File > Swift Packages > Add Package Dependancy...
 
-2. Paste the following into the URL field: https://github.com/duraidabdul/LocalConsole/
+2. Paste the following into the URL field: https://github.com/gahms/OverlayWIndow
 
-3. Once the package dependancy has been added, import LocalConsole and create an easily accessible global instance of ```Console.shared```.
+3. Once the package dependancy has been added, import LocalConsole and create an easily accessible global instance of ```OverlayWindowManager.shared```.
 ```swift
-import LocalConsole
+import OverlayWindow
 
-let consoleManager = LCManager.shared
+let overlayManager = OverlayWindowManager.shared
 ```
 
 ## **Usage**
-Once prepared, the localConsole can be used throughout your project.
+Once prepared, the overlayManager can be used throughout your project.
 ```swift
 
-// Activate the console view.
-consoleManager.isVisible = true
+// Activate the overlay view.
+overlayManager.isVisible = true
 
-// Deactivate the console view.
-consoleManager.isVisible = false
-```
+// Deactivate the overlay view.
+overlayManager.isVisible = false
 
-```swift
-// Print items to the console view.
-consoleManager.print("Hello, world!")
+// Set default position
+overlayManager.defaultWindowPos = .bottomLeft
 
-// Clear console text.
-consoleManager.clear()
+// Remove the "Hide" action from menu
+overlayManager.hideActionEnabled = false
 
-// Copy console text.
-consoleManager.copy()
-```
+// Create our own "hide" functionality
+let hideAction = UIAction(
+    title: "Hide",
+    image: UIImage(systemName: "arrow.left.and.right.square"), handler: { [self] _ in
+        overlayManager.isVisible = false
+    })
+overlayManager.actions = [hideAction]
 
-```swift
-// Change the console view font size.
-consoleManager.fontSize = 5
+// Add our own view as body of the overlay
+let label = UILabel()
+label.text = "Hello World"
+overlayManager.setBody(view: label)
 ```

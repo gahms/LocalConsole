@@ -22,7 +22,7 @@ class ResizeController {
     
     lazy var consoleOutlineView: UIView = {
         
-        let consoleViewReference = LCManager.shared.consoleView
+        let consoleViewReference = OverlayWindowManager.shared.consoleView
         
         let view = UIView()
         view.layer.borderWidth = 2
@@ -48,7 +48,7 @@ class ResizeController {
     
     lazy var bottomGrabber: UIView = {
         let view = UIView()
-        LCManager.shared.contentView.addSubview(view)
+        OverlayWindowManager.shared.contentView.addSubview(view)
         
         view.translatesAutoresizingMaskIntoConstraints = false
         NSLayoutConstraint.activate([
@@ -78,7 +78,7 @@ class ResizeController {
     
     lazy var rightGrabber: UIView = {
         let view = UIView()
-        LCManager.shared.contentView.addSubview(view)
+        OverlayWindowManager.shared.contentView.addSubview(view)
         
         view.translatesAutoresizingMaskIntoConstraints = false
         NSLayoutConstraint.activate([
@@ -115,7 +115,7 @@ class ResizeController {
             _ = rightGrabber
             
             // Ensure initial autolayout is performed unanimated.
-            LCManager.shared.consoleWindow?.layoutIfNeeded()
+            OverlayWindowManager.shared.consoleWindow?.layoutIfNeeded()
             
             FrameRateRequest().perform(duration: 1.5)
             
@@ -123,28 +123,28 @@ class ResizeController {
                 
                 UIViewPropertyAnimator(duration: 0.75, dampingRatio: 1) {
                     
-                    let textView = LCManager.shared.bodyView
+                    let textView = OverlayWindowManager.shared.bodyView
                     
                     textView.contentOffset.y = textView.contentSize.height - textView.bounds.size.height
                 }.startAnimation()
                 
                 
-                if LCManager.shared.consoleView.traitCollection.userInterfaceStyle == .light {
-                    LCManager.shared.consoleView.layer.shadowOpacity = 0.25
+                if OverlayWindowManager.shared.consoleView.traitCollection.userInterfaceStyle == .light {
+                    OverlayWindowManager.shared.consoleView.layer.shadowOpacity = 0.25
                 }
                 
                 // Ensure background color animates in right the first time.
-                LCManager.shared.contentView.backgroundColor = .clear
+                OverlayWindowManager.shared.contentView.backgroundColor = .clear
                 
                 UIViewPropertyAnimator(duration: 0.6, dampingRatio: 1) {
-                    LCManager.shared.consoleView.center = self.consoleCenterPoint
+                    OverlayWindowManager.shared.consoleView.center = self.consoleCenterPoint
                     
                     // Update grabbers (layout constraints)
-                    LCManager.shared.consoleWindow?.layoutIfNeeded()
+                    OverlayWindowManager.shared.consoleWindow?.layoutIfNeeded()
                     
-                    LCManager.shared.menuButton.alpha = 0
+                    OverlayWindowManager.shared.menuButton.alpha = 0
                     
-                    LCManager.shared.contentView.backgroundColor = UIColor(dynamicProvider: { traitCollection in
+                    OverlayWindowManager.shared.contentView.backgroundColor = UIColor(dynamicProvider: { traitCollection in
                         UIColor(white: 0, alpha: traitCollection.userInterfaceStyle == .light ? 0.1 : 0.3)
                     })
                 }.startAnimation()
@@ -164,24 +164,24 @@ class ResizeController {
                     rightGrabber.transform = .identity
                 }.startAnimation(afterDelay: 0.3)
                 
-                LCManager.shared.panRecognizer.isEnabled = false
-                LCManager.shared.longPressRecognizer.isEnabled = false
+                OverlayWindowManager.shared.panRecognizer.isEnabled = false
+                OverlayWindowManager.shared.longPressRecognizer.isEnabled = false
                 
                 // Activate full screen button.
                 consoleOutlineView.isUserInteractionEnabled = true
             } else {
                 
-                LCManager.shared.consoleView.layer.shadowOpacity = 0.5
+                OverlayWindowManager.shared.consoleView.layer.shadowOpacity = 0.5
                 
                 UIViewPropertyAnimator(duration: 0.6, dampingRatio: 1) {
-                    LCManager.shared.snapToCachedEndpoint()
+                    OverlayWindowManager.shared.snapToCachedEndpoint()
                     
                     // Update grabbers (layout constraints)
-                    LCManager.shared.consoleWindow?.layoutIfNeeded()
+                    OverlayWindowManager.shared.consoleWindow?.layoutIfNeeded()
                     
-                    LCManager.shared.menuButton.alpha = 1
+                    OverlayWindowManager.shared.menuButton.alpha = 1
                     
-                    LCManager.shared.contentView.backgroundColor = .clear
+                    OverlayWindowManager.shared.contentView.backgroundColor = .clear
                 }.startAnimation()
                 
                 UIViewPropertyAnimator(duration: 0.2, dampingRatio: 1) { [self] in
@@ -191,8 +191,8 @@ class ResizeController {
                     rightGrabber.alpha = 0
                 }.startAnimation()
                 
-                LCManager.shared.panRecognizer.isEnabled = true
-                LCManager.shared.longPressRecognizer.isEnabled = true
+                OverlayWindowManager.shared.panRecognizer.isEnabled = true
+                OverlayWindowManager.shared.longPressRecognizer.isEnabled = true
                 
                 // Deactivate full screen button.
                 consoleOutlineView.isUserInteractionEnabled = false
@@ -218,7 +218,7 @@ class ResizeController {
         case .began:
             verticalPanner_frameRateRequest.isActive = true
             
-            initialHeight = LCManager.shared.consoleSize.height
+            initialHeight = OverlayWindowManager.shared.consoleSize.height
             
             UIViewPropertyAnimator(duration: 0.4, dampingRatio: 1) { [self] in
                 bottomGrabberPillView.alpha = 0.6
@@ -244,9 +244,9 @@ class ResizeController {
                 }
             }()
             
-            LCManager.shared.lumaHeightAnchor.constant = resolvedHeight
-            LCManager.shared.consoleSize.height = resolvedHeight
-            LCManager.shared.consoleView.center.y = consoleCenterPoint.y
+            OverlayWindowManager.shared.lumaHeightAnchor.constant = resolvedHeight
+            OverlayWindowManager.shared.consoleSize.height = resolvedHeight
+            OverlayWindowManager.shared.consoleView.center.y = consoleCenterPoint.y
             
         case .ended, .cancelled:
             verticalPanner_frameRateRequest.isActive = false
@@ -254,19 +254,19 @@ class ResizeController {
             FrameRateRequest().perform(duration: 0.4)
             
             UIViewPropertyAnimator(duration: 0.4, dampingRatio: 0.7) {
-                if LCManager.shared.consoleSize.height > maxHeight {
-                    LCManager.shared.consoleSize.height = maxHeight
-                    LCManager.shared.lumaHeightAnchor.constant = maxHeight
+                if OverlayWindowManager.shared.consoleSize.height > maxHeight {
+                    OverlayWindowManager.shared.consoleSize.height = maxHeight
+                    OverlayWindowManager.shared.lumaHeightAnchor.constant = maxHeight
                 }
-                if LCManager.shared.consoleSize.height < minHeight {
-                    LCManager.shared.consoleSize.height = minHeight
-                    LCManager.shared.lumaHeightAnchor.constant = minHeight
+                if OverlayWindowManager.shared.consoleSize.height < minHeight {
+                    OverlayWindowManager.shared.consoleSize.height = minHeight
+                    OverlayWindowManager.shared.lumaHeightAnchor.constant = minHeight
                 }
                 
-                LCManager.shared.consoleView.center.y = self.consoleCenterPoint.y
+                OverlayWindowManager.shared.consoleView.center.y = self.consoleCenterPoint.y
                 
                 // Animate autolayout updates.
-                LCManager.shared.consoleWindow?.layoutIfNeeded()
+                OverlayWindowManager.shared.consoleWindow?.layoutIfNeeded()
             }.startAnimation()
             
             UIViewPropertyAnimator(duration: 0.4, dampingRatio: 1) { [self] in
@@ -297,7 +297,7 @@ class ResizeController {
         case .began:
             horizontalPanner_frameRateRequest.isActive = true
             
-            initialWidth = LCManager.shared.consoleSize.width
+            initialWidth = OverlayWindowManager.shared.consoleSize.width
             
             UIViewPropertyAnimator(duration: 0.4, dampingRatio: 1) { [self] in
                 rightGrabberPillView.alpha = 0.6
@@ -323,8 +323,8 @@ class ResizeController {
                 }
             }()
             
-            LCManager.shared.consoleSize.width = resolvedWidth
-            LCManager.shared.consoleView.center.x = (parentSize.width * 1/2).rounded()
+            OverlayWindowManager.shared.consoleSize.width = resolvedWidth
+            OverlayWindowManager.shared.consoleView.center.x = (parentSize.width * 1/2).rounded()
             
         case .ended, .cancelled:
             
@@ -333,17 +333,17 @@ class ResizeController {
             FrameRateRequest().perform(duration: 0.4)
             
             UIViewPropertyAnimator(duration: 0.4, dampingRatio: 0.7) {
-                if LCManager.shared.consoleSize.width > maxWidth {
-                    LCManager.shared.consoleSize.width = maxWidth
+                if OverlayWindowManager.shared.consoleSize.width > maxWidth {
+                    OverlayWindowManager.shared.consoleSize.width = maxWidth
                 }
-                if LCManager.shared.consoleSize.width < minWidth {
-                    LCManager.shared.consoleSize.width = minWidth
+                if OverlayWindowManager.shared.consoleSize.width < minWidth {
+                    OverlayWindowManager.shared.consoleSize.width = minWidth
                 }
                 
-                LCManager.shared.consoleView.center.x = (self.parentSize.width * 1/2).rounded()
+                OverlayWindowManager.shared.consoleView.center.x = (self.parentSize.width * 1/2).rounded()
                 
                 // Animate autolayout updates.
-                LCManager.shared.consoleWindow?.layoutIfNeeded()
+                OverlayWindowManager.shared.consoleWindow?.layoutIfNeeded()
             }.startAnimation()
             
             UIViewPropertyAnimator(duration: 0.4, dampingRatio: 1) { [self] in
@@ -390,8 +390,8 @@ class PlatterView: UIView {
         
         addSubview(blurView)
         
-        LCManager.shared.contentView.addSubview(self)
-        LCManager.shared.contentView.sendSubviewToBack(self)
+        OverlayWindowManager.shared.contentView.addSubview(self)
+        OverlayWindowManager.shared.contentView.sendSubviewToBack(self)
         
         _ = backgroundButton
         
@@ -445,8 +445,8 @@ class PlatterView: UIView {
             self.dismiss()
         }))
         backgroundButton.frame.size = CGSize(width: self.frame.size.width, height: possibleEndpoints[0].y + 30)
-        LCManager.shared.contentView.addSubview(backgroundButton)
-        LCManager.shared.contentView.sendSubviewToBack(backgroundButton)
+        OverlayWindowManager.shared.contentView.addSubview(backgroundButton)
+        OverlayWindowManager.shared.contentView.sendSubviewToBack(backgroundButton)
         return backgroundButton
     }()
     
@@ -498,15 +498,15 @@ class PlatterView: UIView {
         button.addAction(UIAction(handler: { _ in
             
             // Resolves a text view frame animation bug that occurs when *decreasing* text view width.
-            if LCManager.shared.consoleSize.width > LCManager.shared.defaultConsoleSize.width {
-                LCManager.shared.bodyView.frame.size.width = LCManager.shared.defaultConsoleSize.width - 4
+            if OverlayWindowManager.shared.consoleSize.width > OverlayWindowManager.shared.defaultConsoleSize.width {
+                OverlayWindowManager.shared.bodyView.frame.size.width = OverlayWindowManager.shared.defaultConsoleSize.width - 4
             }
             
             UIViewPropertyAnimator(duration: 0.4, dampingRatio: 1) {
-                LCManager.shared.consoleSize = LCManager.shared.defaultConsoleSize
-                LCManager.shared.lumaHeightAnchor.constant = LCManager.shared.defaultConsoleSize.height
-                LCManager.shared.consoleView.center = self.resizeController?.consoleCenterPoint ?? CGPoint.zero
-                LCManager.shared.consoleWindow?.layoutIfNeeded()
+                OverlayWindowManager.shared.consoleSize = OverlayWindowManager.shared.defaultConsoleSize
+                OverlayWindowManager.shared.lumaHeightAnchor.constant = OverlayWindowManager.shared.defaultConsoleSize.height
+                OverlayWindowManager.shared.consoleView.center = self.resizeController?.consoleCenterPoint ?? CGPoint.zero
+                OverlayWindowManager.shared.consoleWindow?.layoutIfNeeded()
             }.startAnimation()
             
         }), for: .touchUpInside)
@@ -577,7 +577,7 @@ class PlatterView: UIView {
                     // Stick buttons to bottom.
                     [doneButton, resetButton,
                      resizeController?.bottomGrabber, resizeController?.rightGrabber,
-                     LCManager.shared.consoleView
+                     OverlayWindowManager.shared.consoleView
                     ].compactMap { $0 }.forEach {
                         $0.transform = .identity
                     }
@@ -593,7 +593,7 @@ class PlatterView: UIView {
                     
                     resizeController?.bottomGrabber.transform = .init(translationX: 0, y: -excess / 2.5)
                     resizeController?.rightGrabber.transform = .init(translationX: 0, y: -excess / 2)
-                    LCManager.shared.consoleView.transform = .init(translationX: 0, y: -excess / 2)
+                    OverlayWindowManager.shared.consoleView.transform = .init(translationX: 0, y: -excess / 2)
                     
                     return possibleEndpoints[0].y - excess
                 }
@@ -633,7 +633,7 @@ class PlatterView: UIView {
                 
                 [doneButton, resetButton,
                  resizeController?.bottomGrabber, resizeController?.rightGrabber,
-                 LCManager.shared.consoleView
+                 OverlayWindowManager.shared.consoleView
                 ].compactMap { $0 }.forEach {
                     $0.transform = .identity
                 }
