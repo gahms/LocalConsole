@@ -145,8 +145,6 @@ public class OverlayWindowManager: NSObject, UIGestureRecognizerDelegate {
     var userBodyView: UIView? = nil
     var userBodyViewController: UIViewController? = nil
     var userBodyDidChange: Bool = false
-    var userBodyViewFixHeight: Bool = false
-    var userBodyViewFixWidth: Bool = true
 
 
     /*
@@ -460,12 +458,10 @@ public class OverlayWindowManager: NSObject, UIGestureRecognizerDelegate {
     
     // MARK: - Public
 
-    public func setBody(view: UIView, fixHeight: Bool = true, fixWidth: Bool = true) {
+    public func setBody(view: UIView) {
         view.translatesAutoresizingMaskIntoConstraints = false
         userBodyView = view
         userBodyViewController = nil
-        userBodyViewFixHeight = fixHeight
-        userBodyViewFixWidth = fixWidth
 
         userBodyDidChange = true
         configureBody()
