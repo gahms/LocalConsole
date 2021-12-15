@@ -31,7 +31,7 @@ public class OverlayWindowManager: NSObject, UIGestureRecognizerDelegate {
     public var defaultWindowPos: DefaultWindowPos = .topLeft
     
     var isConfigured = false
-    let defaultOverlaySize = CGSize(width: 240, height: 148)
+    public var defaultOverlaySize: CGSize = .init(width: 240, height: 148)
     
     lazy var borderView = UIView()
     
