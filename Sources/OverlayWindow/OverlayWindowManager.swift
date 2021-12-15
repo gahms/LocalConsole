@@ -143,6 +143,7 @@ public class OverlayWindowManager: NSObject, UIGestureRecognizerDelegate {
     
     lazy var bodyView: UIScrollView = UIScrollView()
     var userBodyView: UIView? = nil
+    var userBodyViewController: UIViewController? = nil
     var userBodyDidChange: Bool = false
     var userBodyViewFixHeight: Bool = false
     var userBodyViewFixWidth: Bool = true
@@ -462,8 +463,20 @@ public class OverlayWindowManager: NSObject, UIGestureRecognizerDelegate {
     public func setBody(view: UIView, fixHeight: Bool = true, fixWidth: Bool = true) {
         view.translatesAutoresizingMaskIntoConstraints = false
         userBodyView = view
+        userBodyViewController = nil
         userBodyViewFixHeight = fixHeight
         userBodyViewFixWidth = fixWidth
+
+        userBodyDidChange = true
+        configureBody()
+    }
+
+    public func setBody<Content>(view: Content) where Content : View {
+        let host = UIHostingController(rootView: view)
+        host.view.translatesAutoresizingMaskIntoConstraints = false
+        host.view.backgroundColor = .clear
+        userBodyViewController = host
+        userBodyView = host.view
 
         userBodyDidChange = true
         configureBody()
@@ -478,6 +491,10 @@ public class OverlayWindowManager: NSObject, UIGestureRecognizerDelegate {
             v.removeFromSuperview()
         }
         bodyView.addSubview(userBodyView)
+        if let userBodyViewController = userBodyViewController {
+            overlayViewController.addChild(userBodyViewController)
+            userBodyViewController.didMove(toParent: overlayViewController )
+        }
 
         NSLayoutConstraint.activate([
             userBodyView.topAnchor
